@@ -1,0 +1,26 @@
+PLINK v2.00a2LM 64-bit Intel (13 Dec 2019)
+Options in effect:
+  --dummy 2 2
+  --freq
+  --make-bed
+  --out toy_data
+
+Hostname: dell
+Working directory: /home/lg/agrosavia/projects/gwas-polypilene/dev/test-plink2
+Start time: Sun Dec 15 14:51:39 2019
+
+Random number seed: 1576439499
+7912 MiB RAM detected; reserving 3956 MiB for main workspace.
+Using up to 4 compute threads.
+Dummy data (2 samples, 2 SNPs) written to toy_data-temporary.pgen +
+toy_data-temporary.pvar + toy_data-temporary.psam .
+2 samples (2 females, 0 males; 2 founders) loaded from toy_data-temporary.psam.
+2 variants loaded from toy_data-temporary.pvar.
+1 binary phenotype loaded (0 cases, 2 controls).
+Calculating allele frequencies... done.
+--freq: Allele frequencies (founders only) written to toy_data.afreq .
+Writing toy_data.fam ... done.
+Writing toy_data.bim ... done.
+Writing toy_data.bed ... done.
+
+End time: Sun Dec 15 14:51:39 2019

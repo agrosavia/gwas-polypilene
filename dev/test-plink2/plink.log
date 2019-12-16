@@ -1,0 +1,13 @@
+PLINK v1.90b6.12 64-bit (28 Oct 2019)
+Options in effect:
+  --make-bed fplink
+  --pfile filtered-plink-genotype
+
+Hostname: dell
+Working directory: /home/lg/agrosavia/projects/gwas-polypilene/dev/test-plink2
+Start time: Sun Dec 15 15:35:01 2019
+
+Error: --make-bed doesn't accept parameters.  (Did you forget '--out'?)
+For more information, try "plink --help <flag name>" or "plink --help | more".
+
+End time: Sun Dec 15 15:35:01 2019
