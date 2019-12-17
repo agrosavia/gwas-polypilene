@@ -1,0 +1,13 @@
+PLINK v2.00a2LM 64-bit Intel (13 Dec 2019)
+Options in effect:
+  --make-pgen toy_data
+  --out pgen
+
+Hostname: agro
+Working directory: /home/lg/agrosavia/projects/gwas-polypilene/dev/test-plink2/dummy
+Start time: Mon Dec 16 09:03:32 2019
+
+Error: Invalid --make-pgen parameter 'toy_data'.
+For more info, try "plink2 --help <flag name>" or "plink2 --help | more".
+
+End time: Mon Dec 16 09:03:32 2019

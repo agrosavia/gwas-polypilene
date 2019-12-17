@@ -1,0 +1,15 @@
+PLINK v1.90b6.12 64-bit (28 Oct 2019)
+Options in effect:
+  --file
+  --make-bed
+  --out plink-1
+
+Hostname: agro
+Working directory: /home/lg/agrosavia/projects/gwas-polypilene/dev/test-plink2
+Start time: Mon Dec 16 10:36:52 2019
+
+Random number seed: 1576510612
+7829 MB RAM detected; reserving 3914 MB for main workspace.
+Error: Failed to open plink.map.
+
+End time: Mon Dec 16 10:36:52 2019

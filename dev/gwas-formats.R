@@ -1,5 +1,7 @@
 #!/usr/bin/Rscript
 
+# LOG: r1.0: Format for plink and gwas using a default "out" filenames
+
 #options (width=300, stringsAsFactors=F)
 #args = commandArgs(trailingOnly=T)
 library (parallel)
@@ -28,7 +30,8 @@ gwasp2plinkPhenotype <- function (gwaspPhenoFile, outFile="")
 #------------------------------------------------------------------------------
 ## Format and write gwasp to tassel phenotype
 #------------------------------------------------------------------------------
-gwasp2tasselPhenotype<- function (gwaspPhenotypeFile, outFilename="") {
+gwasp2tasselPhenotype<- function (gwaspPhenotypeFile, outFilename="") 
+{
 	gwaspPhenotype = read.csv (file=gwaspPhenotypeFile, header=T)
 	Taxa = as.character (gwaspPhenotype [,1])
 	TRAIT = gwaspPhenotype [,2]
@@ -45,12 +48,10 @@ gwasp2tasselPhenotype<- function (gwaspPhenotypeFile, outFilename="") {
 	sink()
 }
 
-
-
 #------------------------------------------------------------------------------
 ## Create plink MAP file from gwaspoly genotype 
 #------------------------------------------------------------------------------
-gwaspGenoToPlinkMap <- function (gwaspGenoFile) 
+gwasp2plinkGenoMap <- function (gwaspGenoFile) 
 {
 	message (">>> Creating plink MAP file...")
 	genotype    <- read.table (file=gwaspGenoFile, header=T,stringsAsFactors=T,sep=",")
@@ -60,20 +61,17 @@ gwaspGenoToPlinkMap <- function (gwaspGenoFile)
 
 	plinkMap     <- data.frame (chr=chromosomes, iid=markers, dist=0, positions=positions)
 	plinkMapSorted <- plinkMap %>% arrange (chr, positions)
-	outFile   = paste0 ("out/",strsplit (gwaspGenoFile, split="[.]")[[1]][1], "-plink.map")
-	msg()
-	msg (outFile)
-	msg()
+	outFile   = paste0 ("out/",strsplit (basename (gwaspGenoFile), split="[.]")[[1]][1], "-plink.map")
 	write.table (file=outFile, plinkMapSorted, col.names=F, row.names=F, quote=F, sep="\t")
 	return (plinkMapSorted$iid)
 }
-
 
 #----------------------------------------------------------
 # Getting ref/alt alleles for SNPs
 #----------------------------------------------------------
 bases <- c("A","C","G","T")
-get.ref <- function(x) {
+get.ref <- function(x) 
+{
 	y <- paste(na.omit(x),collapse="")
 	ans <- apply(array(bases),1,function(z,y){length(grep(z,y,fixed=T))},y)
 	if (sum(ans)>2) {stop("Error in genotype matrix: More than 2 alleles")}
@@ -87,7 +85,7 @@ get.ref <- function(x) {
 #----------------------------------------------------------
 gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap) 
 {
-	plinkFile  = paste0 ("out/", strsplit (gwaspGenoFile, split="[.]")[[1]][1], "-plink")
+	plinkFile  = paste0 ("out/", strsplit (basename(gwaspGenoFile), split="[.]")[[1]][1], "-plink")
 
 	if (file.exists (paste0(plinkFile,".ped"))) {
 		msg ("Loading plink file...")
@@ -107,6 +105,7 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 
 		# Convert tetra to diplo 
 		allelesDiplo  <- tetraToDiplos (alleles, refAltAlleles)
+		#allelesDiplo  <- old_tetraToDiplos (alleles, refAltAlleles)
 		rownames (allelesDiplo) = markersIds
 		colnames (allelesDiplo) = samplesIds
 
@@ -114,14 +113,14 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 		allelesPlink <- t(allelesDiplo[markersIdsMap,])
 		genoPED    <- cbind (0, samplesIds, 0,0,0,-9, allelesPlink)
 
-		msg ("Writing plink diplo PED file...")
+		msg ("Writing plink diplo PED file to ", plinkFile)
 		plinkFilePed  = paste0 (plinkFile, ".ped")
 		write.table (file=plinkFilePed, genoPED, col.names=F, row.names=F, quote=F, sep="\t")
 
 		# Other files
 		# Write tetra to diplo for gwasp
 		gwasp2genotype = cbind (genotype [,1:3], allelesDiplo)
-		outFile   = paste0 ("out/",strsplit (gwaspGenoFile, split="[.]")[[1]][1], "-diplo.tbl")
+		outFile   = paste0 ("out/",strsplit (basename(gwaspGenoFile), split="[.]")[[1]][1], "-diplo.tbl")
 		write.table (file=outFile, gwasp2genotype, col.names=F, row.names=F, quote=F, sep="\t")
 
 		# Transposed gwasp file
@@ -139,28 +138,9 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 }
 
 #----------------------------------------------------------
-# Add tabs to alleels changign AG --> A	G
 #----------------------------------------------------------
-tabAlleles <- function (alleles) {
-	msg ("Converting tetra to tabbed tetra")
-	matList <- apply (alleles, 2, list) # Lists by SNPs
-
-	doTabs <- function (allele) {
-		return (stri_join (strsplit (allele,split="")[[1]], collapse=" "))
-	}
-
-	tabbedLst <- list()
-	for (ls in matList) {
-		tabbed  <- mcmapply (doTabs,ls[[1]], mc.cores=4)
-		tabbedLst <- append (diplosLst, tabbed)
-	}
-	allelesTabbed <- matrix (unlist(tabbedLst), ncol=ncol(alleles), nrow=nrow(alleles), byrow=F)
-
-	return (allelesTabbed)
-}
-#----------------------------------------------------------
-#----------------------------------------------------------
-gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile) {
+gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile) 
+{
 	sep <- function (allele) {
 		s="";
 		for (i in 1:4) s=paste0(s, substr (allele,start=i,stop=i)," ");
@@ -190,7 +170,9 @@ gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile) {
 #----------------------------------------------------------
 # Add tabs to alleels changign AG --> A	G
 #----------------------------------------------------------
-new_tetraToDiplos <- function (alleles, refAltAlleles) {
+tetraToDiplos <- function (alleles, refAltAlleles) 
+{
+	msg ("Converting tetra to diplos...")
 	al <<- alleles
 	t2d <- function (allele, ref, alt, snp) {
 		if (allele=="0000") return ("00")
@@ -199,20 +181,19 @@ new_tetraToDiplos <- function (alleles, refAltAlleles) {
 		else return (paste0(ref,alt))
 	}
 
-	msg ("Converting tetra to diplos...")
-	matList <- apply (alleles, 2, list) # Lists by SNPs
-
 	ref <- refAltAlleles [1,]
 	alt <- refAltAlleles [2,]
 
 	allelesLst  <<- mapply (t2d, alleles, ref, alt, rownames (alleles))
 
-	allelesMat <<- matrix (unlist(allelesLst), ncol=ncol(alleles), nrow=nrow(alleles), byrow=F)
+	allelesMat <<- matrix (unlist(allelesLst), ncol=ncol(alleles), 
+						   nrow=nrow(alleles), byrow=F)
 
 	return (allelesMat)
 }
 
-tetraToDiplos <- function (alleles, refAltAlleles) {
+old_tetraToDiplos <- function (alleles, refAltAlleles) 
+{
 	#alleles = t (alleles)
 	msg ("Converting tetra to diplos...")
 	matList <- apply (alleles, 2, list) # Lists by SNPs
@@ -248,7 +229,8 @@ msg <- function (...)
 #----------------------------------------------------------
 # Main
 #----------------------------------------------------------
-main <- function () {
+ main <- function () 
+ {
 	args = c ("agrosavia-genotype-tetra-ACGT.tbl", "agrosavia-phenotype.tbl")
 
 	gwaspGenoFile  = args [1]
@@ -256,7 +238,7 @@ main <- function () {
 
 	message (">>> Converting gwaspoly to plink formats...")
 	gwasp2plinkPhenotype (gwaspPhenoFile)
-	markersIdsMap = gwaspGenoToPlinkMap (gwaspGenoFile)
+	markersIdsMap = gwasp2plinkGenoMap (gwaspGenoFile)
 	gwaspTetraGenoToPlinkPed (gwaspGenoFile, markersIdsMap)
 }
 
