@@ -5,7 +5,7 @@
 # r2.1: Support for multiple command line arguments (dynamic)
 
 args = commandArgs(trailingOnly = TRUE)
-#args = c("config-naive-4g-PATB96.config")
+args = c("in/config-gwaspoly-Kinship+PCs.config")
 
 USAGE="USAGE: Rscript gwas-polypiline.R <config file>"
 if (length (args) != 1) {
@@ -57,7 +57,7 @@ main <- function (args)
 	msg (">>>>>>>>>>>>", params$gwasModel, "<<<<<<<<<<<") 
 
 	# Load cache data
-	if (file.exists ("gwas.RData")) load (file="gwas.RData")
+	#if (file.exists ("gwas.RData")) load (file="gwas.RData")
 
 	# Read, filter, and check phenotype and genotype
 	data <- dataPreprocessing (genotypeFile, phenotypeFile, structureFile)
@@ -74,7 +74,7 @@ main <- function (args)
 	# GWAS execution
 	data4 <- runGwaspoly (data3, params$gwasModel, params$snpModels, data4)
 
-	save(data, data1, data2, data3, data4, file="gwas.RData") 
+	#save(data, data1, data2, data3, data4, file="gwas.RData") 
 
 	# Plot results
 	#if (params$genotypePloidy==4) ploidyLabel = "Tetra" else ploidyLabel = "Diplo"
@@ -155,21 +155,21 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, structureFile)
 	msg ("Step 2:")
 	genoAll  = read.csv (genotypeFile, header=T, sep=",", check.names=F)
 	rownames (genoAll) = genoAll [,1]
-	genoFiltered <- genoAll [filteredMarkers,]
+	genoFiltered <<- genoAll [filteredMarkers,]
 
 	msg ("Step 3:")
 	# Select common names geno and pheno
-	samplesNamesGeno   <- colnames (genoFiltered)
-	samplesNamesPheno  = phenoFiltered[,1]
-	commonSamples <- Reduce (intersect, list (samplesNamesGeno, samplesNamesPheno)) 
+	samplesNamesGeno   <<- colnames (genoFiltered)
+	samplesNamesPheno  <<- phenoFiltered[,1]
+	commonSamples <<- Reduce (intersect, list (samplesNamesGeno, samplesNamesPheno)) 
 
 	# Filter geno and pheno by common names
-	phenoCommon = phenoFiltered [phenoFiltered[,1] %in% commonSamples,]
-	genoColums  = c("Markers","Chrom","Position", commonSamples)
-	genoCommon  = genoFiltered  [,colnames(genoFiltered) %in% genoColums]
+	phenoCommon <<- phenoFiltered [phenoFiltered[,1] %in% commonSamples,]
+	genoColums  <<- c(samplesNamesGeno[1:3], commonSamples)
+	genoCommon  <<- genoFiltered  [,colnames(genoFiltered) %in% genoColums]
 
-	outGenoFile  = "out/filtered-gwasp4-genotype.tbl"
-	outPhenoFile = "out/filtered-gwasp4-phenotype.tbl"
+	outGenoFile  <<- "out/filtered-gwasp4-genotype.tbl"
+	outPhenoFile <<- "out/filtered-gwasp4-phenotype.tbl"
 	write.table (file=outGenoFile, genoCommon, row.names=F, quote=F, sep=",")
 	write.table (file=outPhenoFile, phenoCommon, row.names=F, quote=F, sep=",")
 
@@ -267,7 +267,7 @@ runGwaspoly <- function (data3, gwasModel, snpModels, data4)
 #-------------------------------------------------------------
 showResults <- function (data4, testModels, trait, gwasModel, phenotypeFile, snpsAnnFile, ploidy) 
 {
-	msg (">>>>", "Writing results...")
+	msg (">>>>", "Writing results...", trait)
 
 	msg();msg ("Plotting results...");msg()
 	phenoName = strsplit (phenotypeFile, split=".tbl")[[1]][1]
@@ -359,7 +359,9 @@ getQTL <- function(data,snpsAnnFile, gwasModel, ploidy, traits=NULL,models=NULL)
 qqPlot <- function(data,trait,model,cex=1,filename=NULL) 
 {
 	stopifnot(inherits(data,"GWASpoly.fitted"))
+	sc <<- data@scores
 	traits <- names(data@scores)
+
 	stopifnot(is.element(trait,traits))
 	models <- colnames(data@scores[[trait]])
 	stopifnot(is.element(model,models))
