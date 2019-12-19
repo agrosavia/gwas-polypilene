@@ -4,8 +4,9 @@
 # r2.2: Write model type and inflation factor to significative QTLs
 # r2.1: Support for multiple command line arguments (dynamic)
 
+LOAD_DATA = F
 args = commandArgs(trailingOnly = TRUE)
-args = c("in/config-gwaspoly-Kinship+PCs.config")
+#args = c("in/config-gwaspoly-Kinship+PCs.config")
 
 USAGE="USAGE: Rscript gwas-polypiline.R <config file>"
 if (length (args) != 1) {
@@ -26,7 +27,6 @@ source ("gwas-formats.R")           # Module with functions to convert between d
 
 #gwasModelsTypes        = c("Naive", "Kinship", "Structure", "PCs", "Kinship+Structure", "Kinship+PCs", "Structure+PCs", "Kinship+Structure+PCs")
 #snpModels              = c("general","additive","1-dom", "2-dom")
-multipleTestingModel    = "Bonferroni" # Bonferroni | FDR | permute
 #snpModels              = c("general","additive","1-dom")
 #testModels             = c("general", "additive","1-dom-alt","1-dom-ref")
 #snpModels = testModels = c("general")
@@ -34,7 +34,7 @@ multipleTestingModel    = "Bonferroni" # Bonferroni | FDR | permute
 # Global configs
 #-------------------------------------------------------------
 #genotypeFormati = "numeric"|"AB"|"ACGT"
-#genotypeFormat = "numeric"
+#format = "numeric"
 #gwasModel = "Naive"|"Structure"|"Kinship"|"Kinship+Structure|PCs"
 #gwasModel      = "Kinship"
 #PLOIDY         = 4
@@ -50,6 +50,7 @@ main <- function (args)
 	# Read and check config file arguments
 	configFile =  args [1]
 	params = getConfigurationParameters (configFile)
+	print (params)
 	genotypeFile  = params$genotypeFile
 	phenotypeFile = params$phenotypeFile
 	structureFile = params$structureFile
@@ -57,34 +58,58 @@ main <- function (args)
 	msg (">>>>>>>>>>>>", params$gwasModel, "<<<<<<<<<<<") 
 
 	# Load cache data
-	if (file.exists ("gwas.RData")) load (file="gwas.RData")
+	if (LOAD_DATA & file.exists ("gwas.RData")) load (file="gwas.RData")
 
 	# Read, filter, and check phenotype and genotype
 	data <- dataPreprocessing (genotypeFile, phenotypeFile, structureFile, params)
+	genoGwas2File   = "out/filtered-gwasp2-genotype.tbl"
+	phenoGwasp2File = "out/filtered-gwasp4-phenotype.tbl"
+
+	runGwaspolyGwas (phenotypeFile, genotypeFile, 4, params, data)
+	runGwaspolyGwas (phenoGwasp2File, genoGwas2File, 2, params, data)
+
+	if (LOAD_DATA) save(data, data1, data2, data3, data4, file="gwas.RData") 
+
+	# Plot results
+	#if (params$ploidy==4) ploidyLabel = "Tetra" else ploidyLabel = "Diplo"
+
+	#runPlinkGwas (genotypeFile, phenotypeFile, params$gwasModel)
+	#runShesisGwas ()
+}
+
+#-------------------------------------------------------------
+#-------------------------------------------------------------
+runGwaspolyGwas <- function (phenotypeFile, genotypeFile, ploidy,  params, data) 
+{
+	if (ploidy==4) {
+		#snpModels=testModels = ("general")
+		snpModels = c("general","additive","1-dom", "2-dom")
+		testModels = c("general", "additive","1-dom-alt","1-dom-ref","2-dom-alt","2-dom-ref")
+	}else if (ploidy==2) {
+		#snpModels=testModels = ("general")
+		snpModels  = c("general","additive","1-dom")
+		testModels = c("general", "additive","1-dom-alt","1-dom-ref")
+	} else 
+		stop ("unknown ploidy number (only 2 or 4)")
+
+	params = append (params, list (snpModels=snpModels))
+	params = append (params, list (testModels=testModels))
 
 	# Read input genotype and genotype (format: "numeric", "AB", or "ACGT")
-	data1 <- initGWAS (phenotypeFile, genotypeFile,
-					   params$genotypePloidy, params$genotypeFormat, data1)
+	data1 <- initGWAS (phenotypeFile, genotypeFile, ploidy, params$format, data1)
 	# Set the kinship
-	data2 <<- setKinship (data1, params$gwasModel, data2)
+	data2 <- setKinship (data1, params$gwasModel, data2)
 
 	# Populations structure and kinship
 	data3 <- setPopulationStructure (data2, params$gwasModel, data$phenotype, data$structure, data3)
 
 	# GWAS execution
 	data4 <- runGwaspoly (data3, params$gwasModel, params$snpModels, data4)
-
-	save(data, data1, data2, data3, data4, file="gwas.RData") 
-
-	# Plot results
-	#if (params$genotypePloidy==4) ploidyLabel = "Tetra" else ploidyLabel = "Diplo"
 	showResults (data4, params$testModels, data$trait, params$gwasModel, 
-				 params$phenotypeFile, params$annotationsFile, params$genotypePloidy)
+				 params$phenotypeFile, params$annotationsFile, ploidy)
 
-	runPlinkGwas (genotypeFile, phenotypeFile, params$gwasModel)
-	runShesisGwas ()
+	return (data4)
 }
-
 
 #-------------------------------------------------------------
 # 
@@ -175,9 +200,9 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, structureFile, param
 
 	# Convert and write plink pheno filtered
 	msg (outPhenoFile)
-	gwasp2plinkPhenotype  (outPhenoFile,"out/filtered-plink-phenotype.tbl") 
-	gwasp2tasselPhenotype (outPhenoFile,"out/filtered-tassel-phenotype.tbl") 
-	gwasp2shesisGenoPheno ("out/filtered-gwasp4-genotype.tbl", "out/filtered-gwasp4-phenotype.tbl") 
+	##gwasp2plinkPhenotype  (outPhenoFile,"out/filtered-plink-phenotype.tbl") 
+	##gwasp2tasselPhenotype (outPhenoFile,"out/filtered-tassel-phenotype.tbl") 
+	##gwasp2shesisGenoPheno ("out/filtered-gwasp4-genotype.tbl", "out/filtered-gwasp4-phenotype.tbl") 
 
 	return (list (genotypeFile=outGenoFile, phenotypeFile=outPhenoFile,
 				  structureFile=structureFile, trait=trait))
@@ -316,7 +341,7 @@ showResults <- function (data4, testModels, trait, gwasModel, phenotypeFile, snp
 	}
 
 	# QTL Detection
-	data5 = set.threshold (data4, method=multipleTestingModel,level=0.05,n.permute=100,n.core=3)
+	data5 = set.threshold (data4, method="Bonferroni",level=0.05,n.permute=100,n.core=3)
 	#significativeQTLs = get.QTL (data5)
 	significativeQTLs = getQTL (data5, snpsAnnFile, gwasModel, ploidy)
 
@@ -460,16 +485,6 @@ getConfigurationParameters <- function (configFile)
 
 	params = config::get (file=configFile) 
 
-	if (params$genotypePloidy=="4") {
-		snpModels = c("general","additive","1-dom", "2-dom")
-		testModels = c("general", "additive","1-dom-alt","1-dom-ref","2-dom-alt","2-dom-ref")
-	}else{
-		snpModels  = c("general","additive","1-dom")
-		testModels = c("general", "additive","1-dom-alt","1-dom-ref")
-	}
-	params = append (params, list (snpModels=snpModels))
-	params = append (params, list (testModels=testModels))
-
 	message ("------------------------------------------------")
 	message ("Summary of input parameters:")
 	message ("------------------------------------------------")
@@ -478,14 +493,16 @@ getConfigurationParameters <- function (configFile)
 	msg ("Structure filename : ", params$structureFile) 
 	msg ("SNPs filename      : ", params$annotationsFile) 
 	msg ("GwAS model         : ", params$gwasModel) 
-	msg ("Genotype format    : ", params$genotypeFormat) 
-	msg ("Genotype ploidy    : ", params$genotypePloidy)
+	msg ("Genotype format    : ", params$format) 
+	msg ("Genotype ploidy    : ", params$ploidy)
 	msg ("Kinship            : ", params$kinship) 
 	msg ("MIND               : ", params$MIND) 
 	msg ("GENO               : ", params$GENO) 
 	msg ("MAF                : ", params$MAF) 
 	msg ("HWE                : ", params$HWE) 
 	message ("------------------------------------------------")
+
+	runCommand (sprintf ("cp %s out/", configFile))
 
 	return (params)
 }

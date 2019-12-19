@@ -118,10 +118,11 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 		write.table (file=plinkFilePed, genoPED, col.names=F, row.names=F, quote=F, sep="\t")
 
 		# Other files
-		# Write tetra to diplo for gwasp
+		# Write tetra to diplo for gwasp2
 		gwasp2genotype = cbind (genotype [,1:3], allelesDiplo)
 		outFile   = paste0 ("out/",strsplit (basename(gwaspGenoFile), split="[.]")[[1]][1], "-diplo.tbl")
-		write.table (file=outFile, gwasp2genotype, col.names=F, row.names=F, quote=F, sep="\t")
+		write.table (file=outFile, gwasp2genotype, col.names=T, row.names=F, quote=F, sep=",")
+		runCommand (paste0 ("ln -s ", getwd(),"/",outFile, " out/filtered-gwasp2-genotype.tbl"))
 
 		# Transposed gwasp file
 		transposedAlleles <- t(alleles)
@@ -131,7 +132,7 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 
 
 		# Write diplo matrix for original matrix
-		write.table (file="out/tmp-diplosMatrix.tbl",allelesDiplo,  quote=F, sep="\t")
+		write.table (file="tmp-diplosMatrix.tbl",allelesDiplo,  quote=F, sep="\t")
 	}
 	
 	return (plinkFile)
@@ -175,49 +176,29 @@ gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile)
 #----------------------------------------------------------
 tetraToDiplos <- function (alleles, refAltAlleles) 
 {
-	msg ("Converting tetra to diplos...")
-	t2d <- function (allele, ref, alt, snp) {
-		if (is.na (allele)  | allele=="0000") return ("00")
-		else if (strrep (ref,4) == allele) return (paste0(ref,ref))
-		else if (strrep (alt,4) == allele) return (paste0(alt,alt))
-		else return (paste0(ref,alt))
+	if (file.exists ("tmp-diplosMatrix.tbl")) {
+		msg ("Loading diplos matrix...")
+		allelesMat = as.matrix (read.table ("tmp-diplosMatrix.tbl"))
 	}
+	else {
+		msg ("Calculating diplos matrix...")
+		msg ("Converting tetra to diplos...")
+		t2d <- function (allele, ref, alt, snp) {
+			if (is.na (allele)  | allele=="0000") return ("00")
+			else if (strrep (ref,4) == allele) return (paste0(ref,ref))
+			else if (strrep (alt,4) == allele) return (paste0(alt,alt))
+			else return (paste0(ref,alt))
+		}
 
-	ref <- refAltAlleles [1,]
-	alt <- refAltAlleles [2,]
+		ref <- refAltAlleles [1,]
+		alt <- refAltAlleles [2,]
 
-	allelesLst  <- mapply (t2d, alleles, ref, alt, rownames (alleles))
+		allelesLst  <- mcmapply (t2d, alleles, ref, alt, rownames (alleles), mc.cores=4)
 
-	allelesMat <- matrix (unlist(allelesLst), ncol=ncol(alleles), 
-						   nrow=nrow(alleles), byrow=F)
-
+		allelesMat <- matrix (unlist(allelesLst), ncol=ncol(alleles), 
+							   nrow=nrow(alleles), byrow=F)
+	}
 	return (allelesMat)
-}
-
-old_tetraToDiplos <- function (alleles, refAltAlleles) 
-{
-	#alleles = t (alleles)
-	msg ("Converting tetra to diplos...")
-	matList <- apply (alleles, 2, list) # Lists by SNPs
-
-	t2d <- function (allele, ref, alt, snp) {
-		if (allele=="0000") return ("00")
-		else if (strrep (ref,4) == allele) return (paste0(ref,ref))
-		else if (strrep (alt,4) == allele) return (paste0(alt,alt))
-		else return (paste0(ref,alt))
-	}
-	ref <- refAltAlleles [1,]
-	alt <- refAltAlleles [2,]
-
-	diplosLst <- list()
-	for (ls in matList) {
-		diplos    <- mcmapply (t2d,ls[[1]], ref, alt, rownames (alleles), mc.cores=4)
-		diplosLst <- append (diplosLst, diplos)
-	}
-
-	allelesDiplo <- matrix (unlist(diplosLst), ncol=ncol(alleles), nrow=nrow(alleles), byrow=F)
-
-	return (allelesDiplo)
 }
 
 #-------------------------------------------------------------
@@ -227,6 +208,16 @@ msg <- function (...)
 {
   messages = unlist (list (...))
   cat (">>>>", messages, "\n")
+}
+
+#-------------------------------------------------------------
+#-------------------------------------------------------------
+runCommand <- function (command, logFile="") {
+	msg (">>>> ", command)
+	if (logFile != "")
+		system (paste0 (command, " > ", logFile))
+	else
+		system (command)
 }
 #----------------------------------------------------------
 # Main
