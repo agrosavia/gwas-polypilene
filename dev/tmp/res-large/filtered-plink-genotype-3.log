@@ -1,0 +1,25 @@
+PLINK v1.90b6.12 64-bit (28 Oct 2019)
+Options in effect:
+  --bfile filtered-plink-genotype-3
+  --out filtered-plink-genotype-3
+  --recode tab
+
+Hostname: dell
+Working directory: /home/lg/agrosavia/projects/gwas-polypilene/dev/tmp
+Start time: Wed Dec 18 19:46:59 2019
+
+Random number seed: 1576716419
+7898 MB RAM detected; reserving 3949 MB for main workspace.
+2007 variants loaded from .bim file.
+594 people (0 males, 0 females, 594 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to filtered-plink-genotype-3.nosex .
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 594 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+Total genotyping rate is 0.994205.
+2007 variants and 594 people pass filters and QC.
+Note: No phenotypes present.
+--recode ped to filtered-plink-genotype-3.ped + filtered-plink-genotype-3.map
+... done.
+
+End time: Wed Dec 18 19:46:59 2019

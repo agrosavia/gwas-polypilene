@@ -57,10 +57,10 @@ main <- function (args)
 	msg (">>>>>>>>>>>>", params$gwasModel, "<<<<<<<<<<<") 
 
 	# Load cache data
-	#if (file.exists ("gwas.RData")) load (file="gwas.RData")
+	if (file.exists ("gwas.RData")) load (file="gwas.RData")
 
 	# Read, filter, and check phenotype and genotype
-	data <- dataPreprocessing (genotypeFile, phenotypeFile, structureFile)
+	data <- dataPreprocessing (genotypeFile, phenotypeFile, structureFile, params)
 
 	# Read input genotype and genotype (format: "numeric", "AB", or "ACGT")
 	data1 <- initGWAS (phenotypeFile, genotypeFile,
@@ -74,7 +74,7 @@ main <- function (args)
 	# GWAS execution
 	data4 <- runGwaspoly (data3, params$gwasModel, params$snpModels, data4)
 
-	#save(data, data1, data2, data3, data4, file="gwas.RData") 
+	save(data, data1, data2, data3, data4, file="gwas.RData") 
 
 	# Plot results
 	#if (params$genotypePloidy==4) ploidyLabel = "Tetra" else ploidyLabel = "Diplo"
@@ -95,7 +95,7 @@ runPlinkGwas <- function (genotypeFile, phenotypeFile, model)
 	if (model=="Naive") {
 		cmm = paste0 ("plink --file out/filtered-plink-genotype --linear --assoc --adjust --pheno out/filtered-plink-phenotype.tbl --all-pheno --allow-no-sex --out out/out-plink-", model)
 		runCommand (cmm)
-	}else if (model=="Kinship") {
+	}else if (model=="Kinship"|model=="Kinship+PCs") {
 		runCommand ("plink --file out/filtered-plink-genotype --make-bed --out out/tmp-plinkb")
 		runCommand ("plink2 --bfile out/tmp-plinkb --make-pgen --out out/tmp-plinkg")
 		runCommand ("plink2 --pfile out/tmp-plinkg --king-cutoff 0.177 --out out/tmp-plinkg")
@@ -124,16 +124,19 @@ runShesisGwas <- function ()
 
 #-------------------------------------------------------------
 #-------------------------------------------------------------
-runCommand <- function (command) {
+runCommand <- function (command, logFile="") {
 	msg (">>>> ", command)
-	system (command)
+	if (logFile != "")
+		system (paste0 (command, " > ", logFile))
+	else
+		system (command)
 }
 
 #-------------------------------------------------------------
 # Filters the genotype by different quality control filters
 # Read and check files, sample samples
 #-------------------------------------------------------------
-dataPreprocessing <- function (genotypeFile, phenotypeFile, structureFile) 
+dataPreprocessing <- function (genotypeFile, phenotypeFile, structureFile, params) 
 {
 	# Format convertion from gwasp4 to plink2
 	msg ("Converting gwaspoly to plink formats...")
@@ -141,35 +144,29 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, structureFile)
 	plinkFile = gwaspTetraGenoToPlinkPed (genotypeFile, markersIdsMap)
 
 	# Apply filters to genotype (markers and samples) by calling external program
-	system2 ("gwas-filters.sh", plinkFile, stdout="tmp-plink.log") 
-	msg ("Reading filtered markers and individuals...")
-	filteredMarkers <- read.table (file="out/filtered-names-markers.tbl", stringsAsFactors=F)[,1]
-	filteredSamples <- read.table (file="out/filtered-names-samples.tbl", stringsAsFactors=F)[,1]
+	filtered = genotypeFiltering (plinkFile, params)
 
 	# Filter phenotype
-	msg ("Step 1:", phenotypeFile)
 	phenoAll = read.csv (phenotypeFile, header=T, sep=",", check.names=F)
-	phenoFiltered  = phenoAll [phenoAll[,1] %in% filteredSamples,]
+	phenoFiltered  = phenoAll [phenoAll[,1] %in% filtered$Samples,]
 
 	# Filter genotype
-	msg ("Step 2:")
 	genoAll  = read.csv (genotypeFile, header=T, sep=",", check.names=F)
 	rownames (genoAll) = genoAll [,1]
-	genoFiltered <<- genoAll [filteredMarkers,]
+	genoFiltered <- genoAll [filtered$Markers,]
 
-	msg ("Step 3:")
 	# Select common names geno and pheno
-	samplesNamesGeno   <<- colnames (genoFiltered)
-	samplesNamesPheno  <<- phenoFiltered[,1]
-	commonSamples <<- Reduce (intersect, list (samplesNamesGeno, samplesNamesPheno)) 
+	samplesNamesGeno   <- colnames (genoFiltered)
+	samplesNamesPheno  <- phenoFiltered[,1]
+	commonSamples <- Reduce (intersect, list (samplesNamesGeno, samplesNamesPheno)) 
 
 	# Filter geno and pheno by common names
-	phenoCommon <<- phenoFiltered [phenoFiltered[,1] %in% commonSamples,]
-	genoColums  <<- c(samplesNamesGeno[1:3], commonSamples)
-	genoCommon  <<- genoFiltered  [,colnames(genoFiltered) %in% genoColums]
+	phenoCommon <- phenoFiltered [phenoFiltered[,1] %in% commonSamples,]
+	genoColums  <- c(samplesNamesGeno[1:3], commonSamples)
+	genoCommon  <- genoFiltered  [,colnames(genoFiltered) %in% genoColums]
 
-	outGenoFile  <<- "out/filtered-gwasp4-genotype.tbl"
-	outPhenoFile <<- "out/filtered-gwasp4-phenotype.tbl"
+	outGenoFile  <- "out/filtered-gwasp4-genotype.tbl"
+	outPhenoFile <- "out/filtered-gwasp4-phenotype.tbl"
 	write.table (file=outGenoFile, genoCommon, row.names=F, quote=F, sep=",")
 	write.table (file=outPhenoFile, phenoCommon, row.names=F, quote=F, sep=",")
 
@@ -185,6 +182,41 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, structureFile)
 	return (list (genotypeFile=outGenoFile, phenotypeFile=outPhenoFile,
 				  structureFile=structureFile, trait=trait))
 
+}
+#-------------------------------------------------------------
+# Apply filters to genotype (markers and samples) by calling external program
+#-------------------------------------------------------------
+genotypeFiltering <- function (plinkFile, params) {
+	# Filter missingness per sample (MIND)"
+	MIND = params$MIND
+	# Filter missingness per SNP    (GENO)
+	GENO = params$GENO
+	# Filter SNPs with a low minor allele frequency (MAF)
+	MAF  = params$MAF
+	# Filter SNPs which are not in Hardy-Weinberg equilibrium (HWE).
+	HWE  = params$HWE
+	# Filter individuals closely related (Cryptic relatedness)  : --genome --min 0.0001
+	runCommand (sprintf ("plink --file %s --mind %s --geno %s --maf %s --hwe %s --out %s-QC --make-bed", 
+						 plinkFile,MIND,GENO,MAF,HWE,plinkFile), "log1-plink.log")
+	runCommand (sprintf ("plink --bfile %s-QC --recode tab --out %s-QC", plinkFile, plinkFile), "log2-plink.log")
+
+	#system2 (CMM, stdout="tmp-plink.log") 
+
+	# Copy links of filtered plink files to main dir
+	runCommand (sprintf ("ln -s %s/%s-QC.ped out/filtered-plink-genotype.ped", getwd(), plinkFile, plinkFile, "log3-plink.log"))
+	runCommand (sprintf ("ln -s %s/%s-QC.map out/filtered-plink-genotype.map", getwd(), plinkFile, plinkFile, "log4-plink.log"))
+	#system2 (CMM, stdout="tmp-plink.log") 
+
+	# Get final markers and individuals"
+	runCommand (sprintf ("cut -f 2 %s-QC.ped > out/filtered-names-samples.tbl", plinkFile))
+	runCommand (sprintf ("cut -f 2 %s-QC.map > out/filtered-names-markers.tbl", plinkFile))
+	#system2 (CMM, stdout="tmp-plink.log") 
+
+	msg ("Reading filtered markers and individuals...")
+	filteredMarkers <- read.table (file="out/filtered-names-markers.tbl", stringsAsFactors=F)[,1]
+	filteredSamples <- read.table (file="out/filtered-names-samples.tbl", stringsAsFactors=F)[,1]
+
+	return (list (Markers=filteredMarkers, Samples=filteredSamples))
 }
 
 #-------------------------------------------------------------
@@ -294,7 +326,8 @@ showResults <- function (data4, testModels, trait, gwasModel, phenotypeFile, snp
 	# Manhattan plot Output
 	for (i in 1:length(testModels)) {
 		#par (cex=1.5)
-		manhattan.plot (y.max=20,data5, trait=trait, model=testModels [i])
+		#manhattan.plot (y.max=20,data5, trait=trait, model=testModels [i])
+		manhattan.plot (data5, trait=trait, model=testModels [i])
 	}
 	plotTitle = sprintf ("GWAS %s-ploidy with %s for %s trait", ploidy, gwasModel, trait)  
 	mtext(plotTitle, outer=T,  cex=1.5,  line=0)
@@ -448,6 +481,10 @@ getConfigurationParameters <- function (configFile)
 	msg ("Genotype format    : ", params$genotypeFormat) 
 	msg ("Genotype ploidy    : ", params$genotypePloidy)
 	msg ("Kinship            : ", params$kinship) 
+	msg ("MIND               : ", params$MIND) 
+	msg ("GENO               : ", params$GENO) 
+	msg ("MAF                : ", params$MAF) 
+	msg ("HWE                : ", params$HWE) 
 	message ("------------------------------------------------")
 
 	return (params)
