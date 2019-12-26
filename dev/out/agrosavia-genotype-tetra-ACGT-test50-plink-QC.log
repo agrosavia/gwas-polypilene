@@ -1,0 +1,26 @@
+PLINK v1.90b6.13 64-bit (30 Nov 2019)
+Options in effect:
+  --bfile out/agrosavia-genotype-tetra-ACGT-test50-plink-QC
+  --out out/agrosavia-genotype-tetra-ACGT-test50-plink-QC
+  --recode tab
+
+Hostname: lnx
+Working directory: /home/lg/agrosavia/projects/gwas-polypipeline/dev
+Start time: Thu Dec 26 16:17:12 2019
+
+Random number seed: 1577395032
+3741 MB RAM detected; reserving 1870 MB for main workspace.
+38 variants loaded from .bim file.
+604 people (0 males, 0 females, 604 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to
+out/agrosavia-genotype-tetra-ACGT-test50-plink-QC.nosex .
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 604 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+Total genotyping rate is 0.989892.
+38 variants and 604 people pass filters and QC.
+Note: No phenotypes present.
+--recode ped to out/agrosavia-genotype-tetra-ACGT-test50-plink-QC.ped +
+out/agrosavia-genotype-tetra-ACGT-test50-plink-QC.map ... done.
+
+End time: Thu Dec 26 16:17:12 2019

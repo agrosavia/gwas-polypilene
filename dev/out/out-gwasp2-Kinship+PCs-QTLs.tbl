@@ -1,8 +1,0 @@
-Ploidy	Type	GC	Model	Score	Threshold	Effect	Marker	Chrom	Position	Ref	Alt
-2	Kinship+PCs	0.686	general	9.03	4.8	NA	c2_18894	9	43102244	A	G
-2	Kinship+PCs	0.686	general	9.03	4.8	NA	c2_18895	9	43106686	A	G
-2	Kinship+PCs	0.686	general	8.89	4.8	NA	c2_18922	9	43333712	C	T
-2	Kinship+PCs	0.686	general	8.83	4.8	NA	c2_50150	9	46018693	A	G
-2	Kinship+PCs	0.686	general	8.29	4.8	NA	c2_324	4	57569155	C	T
-2	Kinship+PCs	0.686	general	5.82	4.8	NA	c2_37472	5	62092684	C	T
-2	Kinship+PCs	0.686	general	4.86	4.8	NA	c2_45812	13	40126787	A	G

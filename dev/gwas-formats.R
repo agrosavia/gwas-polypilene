@@ -13,14 +13,14 @@ suppressMessages (library (dplyr))
 #------------------------------------------------------------------------------
 gwasp2plinkPhenotype <- function (gwaspPhenoFile, outFile="") 
 {
-	message ("Creating plink phenotype...")
+	msg ("    >>>> Creating plink phenotype...")
 	phenotype = read.csv (file=gwaspPhenoFile, header=T)
 	idNames = as.character (phenotype [,1])
 
 	samples = phenotype [,1]
 	traits  = phenotype [,2]
 
-	message (">>> Writing plink phenotype...")
+	msg ("    >>>> Writing plink phenotype...")
 	plinkPheno = data.frame (FID=0,IID=samples, TRAIT= traits)
 	if (outFile=="")
 		outFile = paste0 ("out/",strsplit (gwaspPhenoFile, split="[.]")[[1]][1], "-plink.tbl")
@@ -37,7 +37,7 @@ gwasp2tasselPhenotype<- function (gwaspPhenotypeFile, outFilename="")
 	TRAIT <- gwaspPhenotype [,2]
 	tasselPheno <- cbind (Taxa, TRAIT)
 
-	msg ("Writing gwasp to tassel phenotype...")
+	msg ("    >>>> Writing gwasp to tassel phenotype...")
 	if (outFilename=="")
 		outFilename = paste0 (strsplit ("out/",gwaspPhenotypeFile, split="[.]")[[1]][1], "-tassel.tbl")
 
@@ -53,7 +53,7 @@ gwasp2tasselPhenotype<- function (gwaspPhenotypeFile, outFilename="")
 #------------------------------------------------------------------------------
 gwasp2plinkGenoMap <- function (gwaspGenoFile) 
 {
-	message (">>> Creating plink MAP file...")
+	msg ("    >>>> Creating plink MAP file...")
 	genotype    <- read.table (file=gwaspGenoFile, header=T,stringsAsFactors=T,sep=",")
 	markers     <- as.character(genotype [,1])
 	chromosomes <- genotype [,2]
@@ -88,22 +88,22 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 	plinkFile  = paste0 ("out/", strsplit (basename(gwaspGenoFile), split="[.]")[[1]][1], "-plink")
 
 	if (file.exists (paste0(plinkFile,".ped"))) {
-		msg ("Loading plink file...")
+		msg ("    >>>> Loading plink file...")
 		return (plinkFile)
 	}else {
-		message (">>> Creating plink PED file...")
+		msg ("    >>>> Creating plink PED file...")
 		genotype   = read.csv (file=gwaspGenoFile, header=T)
 		alleles    <- as.matrix (genotype [,-c(1,2,3)])
 		rownames (alleles) <- genotype [,1]
 
-		message (">>> Creating transposed genotype...")
+		msg ("    >>>> Creating transposed genotype...")
 		markersIds        <- genotype [,1] 
 		samplesIds        <- colnames (alleles)
 
-		msg ("Getting Ref/Alt Alleles...")
+		msg ("    >>>> Getting Ref/Alt Alleles...")
 		refAltAlleles <- apply(alleles,1,get.ref)
 
-		# Convert tetra to diplo 
+		msg ("    >>>> Converting tetra to diplo")
 		allelesDiplo  <- tetraToDiplos (alleles, refAltAlleles)
 		#allelesDiplo  <- old_tetraToDiplos (alleles, refAltAlleles)
 		rownames (allelesDiplo) = markersIds
@@ -113,7 +113,7 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 		allelesPlink <- t(allelesDiplo[markersIdsMap,])
 		genoPED    <- cbind (0, samplesIds, 0,0,0,-9, allelesPlink)
 
-		msg ("Writing plink diplo PED file to ", plinkFile)
+		msg ("    >>>> Writing plink diplo PED file to ", plinkFile)
 		plinkFilePed  = paste0 (plinkFile, ".ped")
 		write.table (file=plinkFilePed, genoPED, col.names=F, row.names=F, quote=F, sep="\t")
 
@@ -142,7 +142,7 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 #----------------------------------------------------------
 gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile) 
 {
-	msg ("Writting gwasp to shesis genopheno...")
+	msg ("    >>>> Writting gwasp to shesis genopheno...")
 	sep <- function (allele) {
 		s="";
 		for (i in 1:4) s=paste0(s, substr (allele,start=i,stop=i)," ");
@@ -162,11 +162,11 @@ gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile)
 	pheno           = pheno [samples,]
 	genoPhenoShesis = data.frame (Sample=pheno[,1], Trait=pheno[,2],  allelesMat)
 
-	msg ("    ", "Writing shesis genopheno...")
+	msg ("    >>>> Writing shesis genopheno...")
 	outFile = "out/filtered-shesis-genopheno.tbl"
 	write.table (file=outFile, genoPhenoShesis, quote=F,row.names=F,col.names=F, sep="\t")
 
-	msg ("    ", "Writing shesis marker names...")
+	msg ("    >>>> Writing shesis marker names...")
 	outFile = "out/filtered-shesis-markernames.tbl"
 	write.table (file=outFile, rownames(geno), quote=F,row.names=F,col.names=F, sep="\t")
 }
@@ -177,12 +177,12 @@ gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile)
 tetraToDiplos <- function (alleles, refAltAlleles) 
 {
 	if (file.exists ("tmp-diplosMatrix.tbl")) {
-		msg ("Loading diplos matrix...")
+		msg ("    >>>> Loading diplos matrix...")
 		allelesMat = as.matrix (read.table ("tmp-diplosMatrix.tbl"))
 	}
 	else {
-		msg ("Calculating diplos matrix...")
-		msg ("Converting tetra to diplos...")
+		msg ("    >>>> Calculating diplos matrix...")
+		msg ("    >>>> Converting tetra to diplos...")
 		t2d <- function (allele, ref, alt, snp) {
 			if (is.na (allele)  | allele=="0000") return ("00")
 			else if (strrep (ref,4) == allele) return (paste0(ref,ref))

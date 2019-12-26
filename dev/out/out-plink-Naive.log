@@ -1,0 +1,43 @@
+PLINK v1.90b6.13 64-bit (30 Nov 2019)
+Options in effect:
+  --adjust
+  --all-pheno
+  --allow-no-sex
+  --assoc
+  --file out/filtered-plink-genotype
+  --linear
+  --out out/out-plink-Naive
+  --pheno out/filtered-plink-phenotype.tbl
+
+Hostname: lnx
+Working directory: /home/lg/agrosavia/projects/gwas-polypipeline/dev
+Start time: Thu Dec 26 16:17:14 2019
+
+Random number seed: 1577395034
+3741 MB RAM detected; reserving 1870 MB for main workspace.
+Scanning .ped file... done.
+Performing single-pass .bed write (38 variants, 604 people).
+--file: out/out-plink-Naive-temporary.bed + out/out-plink-Naive-temporary.bim +
+out/out-plink-Naive-temporary.fam written.
+38 variants loaded from .bim file.
+604 people (0 males, 0 females, 604 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to out/out-plink-Naive.nosex .
+604 phenotype values present after --pheno.
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 604 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+Total genotyping rate is 0.989892.
+38 variants and 604 people pass filters and QC.
+Phenotype data is quantitative.
+604 phenotype values present after --pheno.
+Writing QT --assoc report to out/out-plink-Naive.TRAIT.qassoc ... done.
+--adjust: Genomic inflation est. lambda (based on median chisq) = 1.
+--adjust values (38 variants) written to
+out/out-plink-Naive.TRAIT.qassoc.adjusted .
+Writing linear model association results to
+out/out-plink-Naive.TRAIT.assoc.linear ... done.
+--adjust: Genomic inflation est. lambda (based on median chisq) = 1.
+--adjust values (38 variants) written to
+out/out-plink-Naive.TRAIT.assoc.linear.adjusted .
+
+End time: Thu Dec 26 16:17:14 2019
