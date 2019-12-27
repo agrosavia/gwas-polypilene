@@ -1,0 +1,2 @@
+Ploidy	Type	GC	Model	Score	Threshold	Effect	Marker	Chrom	Position	Ref	Alt
+4	Kinship+PCs	0.93	additive	4.91	4.72	0.21	c2_12601	8	53106007	A	G
