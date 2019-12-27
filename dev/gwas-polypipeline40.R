@@ -103,7 +103,7 @@ runPlinkGwas <- function (genotypeFile, phenotypeFile, model)
 {
 	msg ("Running plink gwas..", model)
 	if (model=="Naive") {
-		cmm = paste0 ("plink --file out/filtered-plink-genotype --linear --assoc --adjust --pheno out/filtered-plink-phenotype.tbl --all-pheno --allow-no-sex --out out/out-plink-", model)
+		cmm = paste0 ("plink --file out/filtered-plink-genotype --linear --adjust --pheno out/filtered-plink-phenotype.tbl --all-pheno --allow-no-sex --out out/out-plink-", model)
 		runCommand (cmm)
 	}else if (model=="Kinship"|model=="Kinship+PCs") {
 		runCommand ("plink --file out/filtered-plink-genotype --make-bed --out out/tmp-plinkb")
