@@ -2,9 +2,44 @@
 
 library (stringr)
 library (dplyr)
+
+
+#------------------------------------------------------------------------
+#------------------------------------------------------------------------
+createVennDiagramsMarkers <- function (A,B,C,D){
+	x <- list()
+	x$Gwasp4 = as.character (A)
+	x$Gwasp2 = as.character (B)
+	x$Plink  = as.character (C)
+	x$Tassel = as.character (D)
+
+	require(VennDiagram)
+	v0 <<-venn.diagram(x, height=9000, width=9000,
+										col = c("red", "blue", "green", "yellow"),
+										fill = c("red", "blue", "green", "yellow"), 
+										alpha = 0.5, filename = NULL)
+	grid.draw(v0)
+	overlaps <- calculate.overlap(x)
+	overlaps <- rev(overlaps)
+
+	posOverlap = as.numeric (gsub ("a","", (names (overlaps))))
+	for (i in 1:length(overlaps)){
+		pos = posOverlap [i]
+		v0[[pos+8]]$label <- paste(overlaps[[i]], collapse = "\n")
+	}
+
+	pdf("venn.pdf")
+	grid.draw(v0)
+	dev.off()
+}
+
+
+#------------------------------------------------------------------------
+#------------------------------------------------------------------------
+
 options (width=300)
 #options(scipen=999)
-nROWS = 20
+nROWS = 5
 
 model="Naive"
 
@@ -20,21 +55,22 @@ for (f in files) {
 	print (f)
 	if (str_detect(f, "Gwasp")) {
 		if (str_detect(f, "Gwasp4")) tool = "Gwasp4" else tool = "Gwasp2"
-		snps	= data$Marker
-		pVal	= round (10^(-data$Score),10)
+		data    = data [1:nROWS,]
+		snps    = data$Marker
+		pVal	  = round (10^(-data$Score),10)
 		chrom   = data$Chrom
-		pos	 = data$Position
-		signf    = data$Score >= data$Threshold
+		pos	    = data$Position
+		signf   = data$Score >= data$Threshold
 		pscores = data$Score
 		tscores = round (-log10 (pThreshold), 4)
 	}else if (str_detect (f, "Plink")) {
-		data = data [1:nROWS,]
-		tool   = "Plink"
-		snps   = data$SNP
-		pVal   = data$UNADJ
-		chrom  = data$CHR
-		pos	= NA
-		pscores  = round (-log10 (pVal), 4)
+		data    = data [1:nROWS,]
+		tool    = "Plink"
+		snps    = data$SNP
+		pVal    = data$UNADJ
+		chrom   = data$CHR
+		pos	    = NA
+		pscores = round (-log10 (pVal), 4)
 		tscores = round (-log10 (pThreshold), 4)
 		signf   = pscores >= tscores
 		
@@ -50,13 +86,22 @@ for (f in files) {
 		signf    = pscores >= tscores
 	}
 
-	df = data.frame (TOOL=tool, MODEL=model, CHR=chrom, POS=pos, SNPs=snps, P = pVal, pTHR=pThreshold, pSCORE=pscores, tSCORE=tscores, Signf=signf )
-	df = df %>% distinct (SNPs, .keep_all=T)
+	df = data.frame (TOOL=tool, MODEL=model, CHR=chrom, POS=pos, SNP=snps, P = pVal, pTHR=pThreshold, pSCORE=pscores, tSCORE=tscores, Signf=signf )
+	df = df %>% distinct (SNP, .keep_all=T)
 	#df = data.frame (TOOL=tool, MODEL=model, SNPs=snps, P = pVal, CHR=chrom, POS=pos,pTHR=pThreshold)
 	summTable = rbind (summTable, df)
 	#summTableSorted = summTable %>% arrange (SNPs, P)
-	summTableSorted = summTable %>% add_count (SNPs, sort=T, name="N1") %>% arrange (desc(N1))
-	summTableSorted = summTableSorted %>% add_count (SNPs, Signf, sort=T, name="Ns") %>% arrange (desc(Ns))
+	summTableSorted = summTable %>% add_count (SNP, sort=T, name="N1") %>% arrange (desc(N1))
+	summTableSorted = summTableSorted %>% add_count (SNP, Signf, sort=T, name="Ns") %>% arrange (desc(Ns))
 	write.table (file="summary-gwas.tbl", summTable, row.names=F,quote=F, sep="\t")
 	write.table (file="summary-gwas-sorted.tbl", summTableSorted, row.names=F,quote=F, sep="\t")
+
 }
+# Create Venn diagram of common markers
+markersGwasp4 = summTable %>% filter (TOOL %in% "Gwasp4") %>% select (SNP) #%>% as.character
+markersGwasp2 = summTable %>% filter (TOOL %in% "Gwasp2") %>% select (SNP) #%>% as.character
+markersPlink  = summTable %>% filter (TOOL %in% "Plink") %>% select (SNP)  #%>% as.character
+markersTassel = summTable %>% filter (TOOL %in% "Tassel") %>% select (SNP) #%>% as.character
+
+#createVennDiagrams (markersGwasp4$SNP, markersGwasp2$SNP, markersPlink$SNP)
+createVennDiagramsMarkers (markersGwasp4$SNP, markersGwasp2$SNP, markersPlink$SNP, markersTassel$SNP)
