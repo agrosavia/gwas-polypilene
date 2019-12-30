@@ -11,9 +11,9 @@ Options in effect:
 
 Hostname: lnx
 Working directory: /home/lg/agrosavia/projects/gwas-polypipeline/dev
-Start time: Fri Dec 27 07:03:23 2019
+Start time: Fri Dec 27 07:18:35 2019
 
-Random number seed: 1577448203
+Random number seed: 1577449115
 3741 MB RAM detected; reserving 1870 MB for main workspace.
 Scanning .ped file... done.
 Performing single-pass .bed write (4605 variants, 602 people).
@@ -41,4 +41,4 @@ out/out-plink-Kinship+PCs.TRAIT.assoc.linear ... done.
 --adjust values (4406 variants) written to
 out/out-plink-Kinship+PCs.TRAIT.assoc.linear.adjusted .
 
-End time: Fri Dec 27 07:03:23 2019
+End time: Fri Dec 27 07:18:36 2019

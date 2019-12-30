@@ -7,8 +7,7 @@
 
 LOAD_DATA = T
 args = commandArgs(trailingOnly = TRUE)
-#args = c("in/config-gwaspoly-Kinship+PCs.config")
-
+args = c("in/config-Gota-K+PCS-noFilters.config")
 USAGE="USAGE: Rscript gwas-polypiline.R <config file>"
 if (length (args) != 1) {
 	message (USAGE)
@@ -89,9 +88,10 @@ runGwaspolyGwas <- function (phenotypeFile, genotypeFile, ploidy,  params, data)
 	data3 <- setPopulationStructure (data2, params$gwasModel, data$phenotype, data3)
 
 	# GWAS execution
-	data4 <- runGwaspoly (data3, params$gwasModel, params$snpModels, data4)
+	d4<<-data4 <- runGwaspoly (data3, params$gwasModel, params$snpModels, data4)
 	showResults (data4, params$testModels, data$trait, params$gwasModel, 
 				 params$phenotypeFile, params$annotationsFile, ploidy)
+	quit()
 
 	if (LOAD_DATA) save(data, data1, data2, data3, data4, file="gwas.RData") 
 }
@@ -103,7 +103,7 @@ runPlinkGwas <- function (genotypeFile, phenotypeFile, model)
 {
 	msg ("Running plink gwas..", model)
 	if (model=="Naive") {
-		cmm = paste0 ("plink --file out/filtered-plink-genotype --linear --adjust --pheno out/filtered-plink-phenotype.tbl --all-pheno --allow-no-sex --out out/out-plink-", model)
+		cmm = paste0 ("plink --file out/filtered-plink-genotype --linear --adjust --pfilter 0.001 --pheno out/filtered-plink-phenotype.tbl --all-pheno --allow-no-sex --out out/out-plink-", model)
 		runCommand (cmm)
 	}else if (model=="Kinship"|model=="Kinship+PCs") {
 		runCommand ("plink --file out/filtered-plink-genotype --make-bed --out out/tmp-plinkb")

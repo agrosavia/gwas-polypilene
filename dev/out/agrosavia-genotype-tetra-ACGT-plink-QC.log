@@ -6,9 +6,9 @@ Options in effect:
 
 Hostname: lnx
 Working directory: /home/lg/agrosavia/projects/gwas-polypipeline/dev
-Start time: Fri Dec 27 07:15:36 2019
+Start time: Sat Dec 28 09:15:05 2019
 
-Random number seed: 1577448936
+Random number seed: 1577542505
 3741 MB RAM detected; reserving 1870 MB for main workspace.
 4605 variants loaded from .bim file.
 604 people (0 males, 0 females, 604 ambiguous) loaded from .fam.
@@ -22,4 +22,4 @@ Note: No phenotypes present.
 --recode ped to out/agrosavia-genotype-tetra-ACGT-plink-QC.ped +
 out/agrosavia-genotype-tetra-ACGT-plink-QC.map ... done.
 
-End time: Fri Dec 27 07:15:36 2019
+End time: Sat Dec 28 09:15:06 2019
