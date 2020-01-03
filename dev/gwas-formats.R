@@ -23,7 +23,7 @@ gwasp2plinkPhenotype <- function (gwaspPhenoFile, outFile="")
 	msg ("    >>>> Writing plink phenotype...")
 	plinkPheno = data.frame (FID=0,IID=samples, TRAIT= traits)
 	if (outFile=="")
-		outFile = paste0 ("out/",strsplit (gwaspPhenoFile, split="[.]")[[1]][1], "-plink.tbl")
+		outFile = paste0 ("out/",strsplit (gwaspPhenoFile, split="[.]")[[1]][1], "-plink.scores")
 	write.table (file=outFile, plinkPheno, col.names=T, row.names=F, quote=F, sep="\t")
 }
 
@@ -39,7 +39,7 @@ gwasp2tasselPhenotype<- function (gwaspPhenotypeFile, outFilename="")
 
 	msg ("    >>>> Writing gwasp to tassel phenotype...")
 	if (outFilename=="")
-		outFilename = paste0 (strsplit ("out/",gwaspPhenotypeFile, split="[.]")[[1]][1], "-tassel.tbl")
+		outFilename = paste0 (strsplit ("out/",gwaspPhenotypeFile, split="[.]")[[1]][1], "-tassel.scores")
 
 	sink (outFilename)
 	cat ("<Phenotype>\n")
@@ -120,19 +120,19 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 		# Other files
 		# Write tetra to diplo for gwasp2
 		gwasp2genotype = cbind (genotype [,1:3], allelesDiplo)
-		outFile   = paste0 ("out/",strsplit (basename(gwaspGenoFile), split="[.]")[[1]][1], "-diplo.tbl")
+		outFile   = paste0 ("out/",strsplit (basename(gwaspGenoFile), split="[.]")[[1]][1], "-diplo.scores")
 		write.table (file=outFile, gwasp2genotype, col.names=T, row.names=F, quote=F, sep=",")
-		runCommand (paste0 ("ln -s ", getwd(),"/",outFile, " out/filtered-gwasp2-genotype.tbl"))
+		runCommand (paste0 ("ln -s ", getwd(),"/",outFile, " out/filtered-gwasp2-genotype.scores"))
 
 		# Transposed gwasp file
 		transposedAlleles <- t(alleles)
 		rownames (transposedAlleles) = samplesIds
 		colnames (transposedAlleles) = markersIds
-		write.table (file ="out/tmp-plink-transposed.tbl", transposedAlleles, col.names=T, row.names=T, quote=F, sep="\t")
+		write.table (file ="out/tmp-plink-transposed.scores", transposedAlleles, col.names=T, row.names=T, quote=F, sep="\t")
 
 
 		# Write diplo matrix for original matrix
-		write.table (file="tmp-diplosMatrix.tbl",allelesDiplo,  quote=F, sep="\t")
+		write.table (file="tmp-diplosMatrix.scores",allelesDiplo,  quote=F, sep="\t")
 	}
 	
 	return (plinkFile)
@@ -163,11 +163,11 @@ gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile)
 	genoPhenoShesis = data.frame (Sample=pheno[,1], Trait=pheno[,2],  allelesMat)
 
 	msg ("    >>>> Writing shesis genopheno...")
-	outFile = "out/filtered-shesis-genopheno.tbl"
+	outFile = "out/filtered-shesis-genopheno.scores"
 	write.table (file=outFile, genoPhenoShesis, quote=F,row.names=F,col.names=F, sep="\t")
 
 	msg ("    >>>> Writing shesis marker names...")
-	outFile = "out/filtered-shesis-markernames.tbl"
+	outFile = "out/filtered-shesis-markernames.scores"
 	write.table (file=outFile, rownames(geno), quote=F,row.names=F,col.names=F, sep="\t")
 }
 
@@ -176,9 +176,9 @@ gwasp2shesisGenoPheno <- function (genotypeFile, phenotypeFile)
 #----------------------------------------------------------
 tetraToDiplos <- function (alleles, refAltAlleles) 
 {
-	if (file.exists ("tmp-diplosMatrix.tbl")) {
+	if (file.exists ("tmp-diplosMatrix.scores")) {
 		msg ("    >>>> Loading diplos matrix...")
-		allelesMat = as.matrix (read.table ("tmp-diplosMatrix.tbl"))
+		allelesMat = as.matrix (read.table ("tmp-diplosMatrix.scores"))
 	}
 	else {
 		msg ("    >>>> Calculating diplos matrix...")
@@ -224,7 +224,7 @@ runCommand <- function (command, logFile="") {
 #----------------------------------------------------------
  main <- function () 
  {
-	args = c ("agrosavia-genotype-tetra-ACGT.tbl", "agrosavia-phenotype.tbl")
+	args = c ("agrosavia-genotype-tetra-ACGT.scores", "agrosavia-phenotype.scores")
 
 	gwaspGenoFile  = args [1]
 	gwaspPhenoFile = args [2]
