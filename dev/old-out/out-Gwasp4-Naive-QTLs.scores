@@ -1,11 +1,3 @@
 Ploidy	Type	GC	Model	Score	Threshold	Effect	Marker	Chrom	Position	Ref	Alt
-4	Naive	1.202	1-dom-alt	4.53	4.4	0.14	c2_12601	8	53106007	A	G
-4	Naive	1.164	2-dom-alt	5.01	4.47	0.14	c2_16722	5	48815750	A	C
-4	Naive	0.583	general	9.3	4.72	NA	c2_26802	5	9525557	C	T
-4	Naive	0.583	general	7.34	4.72	NA	c2_50231	6	36834630	C	T
-4	Naive	0.583	general	6.3	4.72	NA	c2_18662	8	55213230	G	T
-4	Naive	0.583	general	5.61	4.72	NA	c2_57245	6	39681703	G	T
-4	Naive	0.583	general	5.12	4.72	NA	c2_50226	6	36824795	A	G
-4	Naive	0.583	general	5.1	4.72	NA	c1_15192	6	20318671	A	C
-4	Naive	0.583	general	4.76	4.72	NA	c2_39029	10	1199754	C	T
-4	Naive	0.583	general	4.73	4.72	NA	c2_37472	5	62092684	C	T
+4	Naive	0.713	general	5.12	3.74	NA	c1_15192	6	20318671	A	C
+4	Naive	0.713	general	4.17	3.74	NA	c1_12877	5	64022298	C	T

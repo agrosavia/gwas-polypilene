@@ -6,34 +6,33 @@ Options in effect:
   --file out/filtered-plink-genotype
   --linear
   --out out/out-Plink-Naive
-  --pfilter 0.001
-  --pheno out/filtered-plink-phenotype.scores
+  --pheno out/filtered-plink-phenotype.tbl
 
 Hostname: agro
 Working directory: /home/lg/agrosavia/projects/gwas-polypilene/dev
-Start time: Fri Jan  3 10:46:27 2020
+Start time: Wed Jan  8 15:54:52 2020
 
-Random number seed: 1578066387
+Random number seed: 1578516892
 7829 MB RAM detected; reserving 3914 MB for main workspace.
 Scanning .ped file... done.
-Performing single-pass .bed write (3283 variants, 604 people).
+Performing single-pass .bed write (500 variants, 604 people).
 --file: out/out-Plink-Naive-temporary.bed + out/out-Plink-Naive-temporary.bim +
 out/out-Plink-Naive-temporary.fam written.
-3283 variants loaded from .bim file.
+500 variants loaded from .bim file.
 604 people (0 males, 0 females, 604 ambiguous) loaded from .fam.
 Ambiguous sex IDs written to out/out-Plink-Naive.nosex .
 604 phenotype values present after --pheno.
 Using 1 thread (no multithreaded calculations invoked).
 Before main variant filters, 604 founders and 0 nonfounders present.
 Calculating allele frequencies... done.
-Total genotyping rate is 0.990843.
-3283 variants and 604 people pass filters and QC.
+Total genotyping rate is 0.990437.
+500 variants and 604 people pass filters and QC.
 Phenotype data is quantitative.
 604 phenotype values present after --pheno.
 Writing linear model association results to
 out/out-Plink-Naive.TRAIT.assoc.linear ... done.
---adjust: Genomic inflation est. lambda (based on median chisq) = 1.47941.
---adjust values (3283 variants) written to
+--adjust: Genomic inflation est. lambda (based on median chisq) = 1.14412.
+--adjust values (474 variants) written to
 out/out-Plink-Naive.TRAIT.assoc.linear.adjusted .
 
-End time: Fri Jan  3 10:46:27 2020
+End time: Wed Jan  8 15:54:52 2020

@@ -1,5 +1,6 @@
 #!/usr/bin/Rscript
 ## Log: 
+##      r1.0: Message to log files
 ##      r0.9: Full working with funtions: create tables and ven diagrams using parameters
 ##      r0.8: Create venn diagrams, summary table of first Ns"
 ##     
@@ -47,13 +48,10 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, SIGN
 
 	files =  list.files(inputDir, pattern=paste0("^(.*(",gwasType,").*(scores)[^$]*)$"), full.names=T)
 	message (">>>> SUMMARY FOR THE FILES: ")
-	for (f in files) message ("    ", f)
 	summaryTable = data.frame ()
 
-	message ("");message (">>>> Processing files")
 	tool=""
 	for (f in files) {
-		message ("    ", f)
 		if (str_detect(f, "Gwasp4")) {
 			#if (str_detect(f, "Gwasp4")) tool <- "Gwasp4" else tool <- "Gwasp2"
 			data = read.table (file=f, header=T)
@@ -106,14 +104,14 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, SIGN
 			pos		= NA
 			signf   = pscores >= tscores
 		}
-		print (tool)
+		message ("    ", tool, ": ", f)
 		dfm = data.frame (TOOL=tool, MODEL=gwasType, CHR=chrom, POS=pos, SNP=snps, P = round (pVal,6), FDRSCORE=pscores, THRESHOLD=tscores, SIGNF=signf )
 		dfm = dfm %>% distinct (SNP, .keep_all=T)
 		summaryTable <- rbind (summaryTable, dfm)
 	}
 	summaryTable = summaryTable [which(!is.na(summaryTable$SIGNF)),]
-	message ("Writing...")
 	outName = paste0(outDir, "/out-summary-gwas-best", nBEST)
+	msg ("Writing summary results to ", outName, "...")
 	write.table (file=paste0(outName,".scores"), summaryTable, row.names=F,quote=F, sep="\t")
 	markersVennDiagrams (summaryTable, paste0("best",nBEST), outDir)
 	summarySignificatives = summaryTable %>% filter (SIGNF%in%T) 
@@ -124,5 +122,16 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, SIGN
 	return (summaryTable)
 }
 
+
+#-------------------------------------------------------------
+# Print a log message with the parameter
+#-------------------------------------------------------------
+msg <- function (...) 
+{
+  messages = unlist (list (...))
+  cat (">>>>", messages, "\n")
+}
+
 # Create Venn diagram of common markers
 #markersSummaryTable ("out/", "Naive", "out/")
+

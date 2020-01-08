@@ -7,6 +7,7 @@
 library (parallel)
 library (stringi)
 suppressMessages (library (dplyr))
+formatsLogFile="log-formats.log"
 
 #------------------------------------------------------------------------------
 ## Format gwaspoly phenotype to plink format
@@ -122,7 +123,7 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap)
 		gwasp2genotype = cbind (genotype [,1:3], allelesDiplo)
 		outFile   = paste0 ("out/",strsplit (basename(gwaspGenoFile), split="[.]")[[1]][1], "-diplo.tbl")
 		write.table (file=outFile, gwasp2genotype, col.names=T, row.names=F, quote=F, sep=",")
-		runCommand (paste0 ("ln -s ", getwd(),"/",outFile, " out/filtered-gwasp2-genotype.tbl"))
+		runCommand (paste0 ("ln -s ", getwd(),"/",outFile, " out/filtered-gwasp2-genotype.tbl"), formatsLogFile)
 
 		# Transposed gwasp file
 		transposedAlleles <- t(alleles)
