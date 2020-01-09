@@ -1,0 +1,29 @@
+PLINK v1.90b6.12 64-bit (28 Oct 2019)
+Options in effect:
+  --file tgeno
+  --out out-pca
+  --pca 5
+
+Hostname: agro
+Working directory: /home/lg/agrosavia/projects/gwas-polypilene/dev/scripts
+Start time: Wed Jan  8 23:31:21 2020
+
+Random number seed: 1578544281
+7829 MB RAM detected; reserving 3914 MB for main workspace.
+Scanning .ped file... done.
+Performing single-pass .bed write (3283 variants, 604 people).
+--file: out-pca-temporary.bed + out-pca-temporary.bim + out-pca-temporary.fam
+written.
+3283 variants loaded from .bim file.
+604 people (0 males, 0 females, 604 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to out-pca.nosex .
+Using up to 4 threads (change this with --threads).
+Before main variant filters, 604 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+Total genotyping rate is 0.990843.
+3283 variants and 604 people pass filters and QC.
+Note: No phenotypes present.
+Relationship matrix calculation complete.
+--pca: Results saved to out-pca.eigenval and out-pca.eigenvec .
+
+End time: Wed Jan  8 23:31:21 2020

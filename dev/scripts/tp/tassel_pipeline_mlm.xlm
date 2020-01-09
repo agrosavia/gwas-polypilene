@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<TasselPipeline>
+    <fork1>
+		<plink>
+			<ped> tgeno.ped </ped>
+			<map> tgeno.map </map> 
+		</plink>
+    </fork1>
+    <fork2>
+        <r> tpheno.tbl </r>
+    </fork2>
+    <fork3>
+		<plink>
+			<ped> tgeno.ped </ped>
+			<map> tgeno.map </map> 
+		</plink>
+		<PrincipalComponentsPlugin>
+			<covariance/>
+			<reportEigenvalues> false </reportEigenvalues>
+		</PrincipalComponentsPlugin>
+    </fork3>
+    <combine6>
+		<input1/>
+		<input3/>
+		<intersect/>
+    </combine6>
+    <export>out-mlm</export>
+    <runfork1/>
+    <runfork2/>
+    <runfork3/>
+</TasselPipeline>
