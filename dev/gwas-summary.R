@@ -56,9 +56,9 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, SIGN
 			#if (str_detect(f, "Gwasp4")) tool <- "Gwasp4" else tool <- "Gwasp2"
 			data = read.table (file=f, header=T)
 			tool    = "Gwasp4"
-			data    = data %>% add_count (Marker, sort=T, name="N1") %>% arrange (desc(N1), desc(Score))
+			data    = data %>% add_count (Marker, sort=T, name="N1") %>% arrange (desc(N1), desc(GC))
 			data    = data %>% distinct (Marker, .keep_all=T)
-			data    = if (ncol(data)>nBEST) data [1:nBEST,] else data
+			if (nrow(data)>nBEST) data=data [1:nBEST,] 
 			snps    <- data$Marker
 			pVal	<- round (10^(-data$Score),10)
 			pscores <- data$Score
@@ -67,8 +67,9 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, SIGN
 			pos	    <- data$Position
 			signf   = pscores >= tscores
 		}else if (str_detect (f, "Plink")) {
-			data = read.table (file=f, header=T)
-			data    = if (ncol(data)>nBEST) data [1:nBEST,] else data
+			data    = read.table (file=f, header=T)
+			print (data[1:nBEST,1:10])
+			if (nrow(data)>nBEST) data=data [1:nBEST,]
 			tool    = "Plink"
 			snps    = data$SNP
 			pVal    = p.adjust (data$UNADJ, "fdr")
@@ -80,7 +81,7 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, SIGN
 			
 		}else if (str_detect (f, "Tassel")) {
 			data    = read.table (file=f, header=T)
-			data    = if (ncol(data)>nBEST) data [1:nBEST,] else data
+			if (nrow(data)>nBEST) data=data [1:nBEST,]
 			tool    = "Tassel"
 			snps    = data$Marker
 			#pVal    = unlist (data %>% rowwise %>% mutate (minP=min(p, add_p, dom_p, na.rm=T)) %>% select (minP))
@@ -133,5 +134,5 @@ msg <- function (...)
 }
 
 # Create Venn diagram of common markers
-#markersSummaryTable ("out/", "Naive", "out/")
+#markersSummaryTable ("out/", "Naive", "out/", nBEST=10)
 
