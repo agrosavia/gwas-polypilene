@@ -42,9 +42,9 @@ markersVennDiagrams <- function (summaryTable, scoresType, outDir="out"){
 #------------------------------------------------------------------------
 # Create a summary table of best and significative markers
 #------------------------------------------------------------------------
-markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, SIGNIFICANCE=0.05) {
+markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, significanceLevel=0.05, correctionMethod="FDR") {
 	nMARKERS = 2017
-	THRESHOLD = round (-log10 (SIGNIFICANCE/nMARKERS),4)
+	THRESHOLD = round (-log10 (significanceLevel/nMARKERS),4)
 
 	files =  list.files(inputDir, pattern=paste0("^(.*(",gwasType,").*(scores)[^$]*)$"), full.names=T)
 	message (">>>> SUMMARY FOR THE FILES: ")
@@ -68,13 +68,22 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, SIGN
 			signf   = pscores >= tscores
 		}else if (str_detect (f, "Plink")) {
 			data    = read.table (file=f, header=T)
+			if (correctionMethod=="FDR") {
+				data    = data [order (data$SCORES_FDR),] 
+				pscores = round (data$SCORES_FDR, 6)
+				tscores = round (data$THRESHOLD_FDR, 6)
+			}
+			else if (correctionMethod=="Bonferroni") {
+				data    = data [order (data$SCORES_BONF),]
+				pscores = round (data$SCORES_BONF, 6)
+				tscores = round (data$THRESHOLD_BONF, 6)
+			}
+
 			print (data[1:nBEST,1:10])
 			if (nrow(data)>nBEST) data=data [1:nBEST,]
 			tool    = "Plink"
+			pVal    = data$UNADJ
 			snps    = data$SNP
-			pVal    = p.adjust (data$UNADJ, "fdr")
-			pscores = round (-log10 (pVal), 4)
-			tscores = THRESHOLD
 			chrom   = data$CHR
 			pos	    = NA
 			signf   = pscores >= tscores

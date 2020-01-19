@@ -146,6 +146,33 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap, outDir="./")
 
 #----------------------------------------------------------
 #----------------------------------------------------------
+gwaspTetraToDiploGenotype <- function (genotypeFile) 
+{
+	genotype = read.csv (genotypeFile, header=T,check.names=F)
+	map      = genotype [,1:3] 
+	alleles  = as.matrix (genotype [,-c(1,2,3)])
+	rownames (alleles) <- genotype [,1]
+
+	markersIds        <- genotype [,1] 
+	samplesIds        <- colnames (alleles)
+
+	msg ("    >>>> Getting Ref/Alt Alleles...")
+	refAltAlleles <- apply(alleles,1,get.ref)
+
+	msg ("    >>>> Converting tetra to diplo")
+	diplosMat  <- tetraToDiplos (genotype[,-c(2,3)], refAltAlleles)
+	rownames (diplosMat) = markersIds
+	colnames (diplosMat) = samplesIds
+
+	msg ("    >>>> Writing diplo genotype...")
+	genotypeDiplo = data.frame (map, diplosMat, check.names=F)
+	outName = addLabel (genotypeFile, "diplo")
+	write.csv (file=outName, genotypeDiplo, row.names=F, quote=F)
+}
+
+#----------------------------------------------------------
+#----------------------------------------------------------
+#----------------------------------------------------------
 gwaspToShesisGenoPheno <- function (genotypeFile, phenotypeFile) 
 {
 	msg ("    >>>> Writting gwasp to shesis genopheno...")
@@ -317,6 +344,15 @@ numericToABGenotypeFormat <- function (genotypeFile)
 }
 
 #-------------------------------------------------------------
+# Add label to filename
+#-------------------------------------------------------------
+addLabel <- function (filename, label)  {
+	nameext = strsplit (filename, split="[.]")
+	newName = paste0 (nameext [[1]][1], "-", label, ".", nameext [[1]][2])
+	return (newName)
+}
+
+#-------------------------------------------------------------
 # Print a log message with the parameter
 #-------------------------------------------------------------
 msg <- function (...) 
@@ -334,6 +370,19 @@ runCommand <- function (command, logFile="") {
 	else
 		system (command)
 }
+
+hd <- function (data, m=10,n=10) {
+	msg (deparse (substitute (data)),":")
+	if (is.null (dim (data)))
+		print (data [1:10])
+	else if (ncol (data) < 5) 
+		print (data[1:m,])
+	else if (nrow (data) < 10)
+		print (data[,1:n])
+	else 
+		print (data [1:m, 1:n])
+}
+
 #----------------------------------------------------------
 # Main
 #----------------------------------------------------------

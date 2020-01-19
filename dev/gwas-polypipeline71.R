@@ -8,9 +8,13 @@
 # r4.1: Without structure file input, Working with G4,G2,PL,SH
 # r2.41: Changed to parameters by config file. Beginning changes...
 
-LOAD_DATA = FALSE
+# Constants
+LOAD_DATA          = FALSE
+SIGNIFICANCE_LEVEL = 0.05      # Minimun level of significance (alpha) to considerer a significant SNP
+MAX_BEST           = 10         # Max number of SNPs of best scored SNPs to show in tables and graphics
+
 args = commandArgs(trailingOnly = TRUE)
-args = c("config-Gwaspoly-Naive-filtersFalse-imputeFalse.config")
+args = c("config-Gwaspoly-Naive-filtersFalse.config")
 #args = c("in/config-Gota-Naive-filtersNone-impute.config")
 #args = c("in/config-test500-Naive-filtersNone.config")
 
@@ -54,8 +58,7 @@ main <- function (args)
 	genotypeFile  <- config$genotypeFile
 	phenotypeFile <- config$phenotypeFile
 
-	system ("rm -rf out;mkdir out")
-	system (sprintf ("cp %s out/", configFile))
+	outDir = initOutputDir (configFile, genotypeFile, phenotypeFile)
 
 	msg (">>>>>>>>>>>>", config$gwasModel, "<<<<<<<<<<<") 
 
@@ -67,15 +70,50 @@ main <- function (args)
 	config$trait = data$trait
 
 	# Run the four tools in parallel
-	mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
+	runPlinkGwas (config)
+	#mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
 
 	# Create outputs: tables, figures
-	markersSummaryTable ("out/", config$gwasModel, "out/", nBEST=5, SIGNIFICANCE=0.05)
+	markersSummaryTable ("out/", config$gwasModel, "out/", nBEST=MAX_BEST, significanceLevel=SIGNIFICANCE_LEVEL)
+
+	# Move out files to output dir
+	moveOutFiles (outDir)
+
 
 	# Save test in new dir
 	#outName = gsub ("config","test", configFile)
 	#system (sprintf ("mv out %s", outName))
 }
+#-------------------------------------------------------------
+# Create dir if it exists it is renamed as old-XXXX
+# Copy and make links of geno/pheno to output dirs
+#-------------------------------------------------------------
+initOutputDir <- function (configFile, genotypeFile, phenotypeFile) 
+{
+	outDir   = gsub ("config","test", configFile)
+	msg ("Output dir: ", outDir)
+	createDir (outDir)
+
+	runCommand (sprintf ("ln -s %s/%s %s/%s", getwd(), genotypeFile, outDir, genotypeFile))
+	runCommand (sprintf ("ln -s %s/%s %s/%s", getwd(), phenotypeFile, outDir, phenotypeFile))
+
+	setwd (outDir)
+	system ("mkdir out")
+
+	runCommand (sprintf ("cp -a %s %s", genotypeFile, "out/"))
+	runCommand (sprintf ("cp -a %s %s", phenotypeFile, "out/"))
+}
+
+moveOutFiles <- function (outDir) 
+{
+	system ("mv out/out*scores .")
+	system ("mv out/out*pdf .")
+	system ("mkdir logs")
+	system ("mv *.log* logs")
+	system ("mv *.errors* logs")
+}
+
+
 
 #-------------------------------------------------------------
 # Used to run in parallel the other functions
@@ -143,7 +181,7 @@ runPlinkGwas <- function (params)
 	else if (model=="Structure") {
 		# First: kinship filtering
 		outPrefixKinFile  = "out/out-King"
-		cmm=sprintf ("%s/scripts/king-kinship.sh %s %s %s", HOME, inGeno, outFile)
+		cmm=sprintf ("%s/scripts/kin-kinship.sh %s %s", HOME, inGeno, outFile)
 		runCommand (cmm, "log-Kin.log")
 
 		# Second: Structure by PCs 
@@ -152,8 +190,23 @@ runPlinkGwas <- function (params)
 	else
 		quit (paste ("Type of GWAS:\"", model, "\", not supported"))
 
+
+	# Data preprocessing
 	runCommand (cmm, "log-Plink.log")
-	runCommand (paste0 ("mv ", outPlink, " ", outFile, ".scores"), "log-Plink.log") 
+	outFile = paste0 (outFile, ".scores")
+	#runCommand (paste0 ("mv ", outPlink, " ", outFile), "log-Plink.log") 
+
+	results             <- read.table (file=outPlink,  header=T) 
+	scoresFDR           <- -log10(results$FDR_BH)
+	scoresBONFERRONI    <- -log10(results$BONF)
+	thresholdFDR        <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores= scoresFDR, method="FDR")
+	thresholdBONFERRONI <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores= scoresBONFERRONI, method="Bonferroni")
+
+	resultsAll  <- cbind (results, SCORE_FDR=scoresFDR, THRESHOLD_FDR=thresholdFDR, SCORE_BONF=scoresBONFERRONI, THRESHOLD_BONF=thresholdBONFERRONI)
+
+	write.table (file=outFile, resultsAll, row.names=F, quote=F, sep="\t")
+	#thresholdBONF <<- calculateThreshold (level=0.05, results= -log10(results$BONF), method="Bonferroni")
+	#sctb<<-scoresThreshold <<- cbind (results[order(results$BONF,decreasing=F),], SCORE=-log10(results$BONF), THRESHOLD=thresholdBONF)
 }
 	
 #-------------------------------------------------------------
@@ -193,7 +246,7 @@ runTasselGwas <- function (params)
 		runCommand (cmm, "log-tassel.log")
 		outFile   = list.files("out/", pattern=sprintf("^(.*(%s).*(1).*(txt)[^$]*)$",model), full.names=T)
 	}else if (model=="Structure") {
-		cmm=sprintf ("%s,scripts/tassel-pipeline-MLM-Kinship_PCs.sh %s %s %s %s",
+		cmm=sprintf ("%s/scripts/tassel-pipeline-MLM-Kinship_PCs.sh %s %s %s %s",
 					 HOME, inGenoPED, inGenoMAP, inPhenoTBL, outPrefix)
 		runCommand (cmm, "log-tassel.log")
 		outFile   = list.files("out/", pattern=sprintf("^(.*(%s).*(stats).*(txt)[^$]*)$",model), full.names=T)
@@ -219,8 +272,7 @@ runTasselGwas <- function (params)
 #-------------------------------------------------------------
 dataPreprocessing <- function (genotypeFile, phenotypeFile, config) 
 {
-	runCommand (sprintf ("ln -s %s/%s out/%s", getwd(), genotypeFile, genotypeFile))
-	runCommand (sprintf ("ln -s %s/%s out/%s", getwd(), phenotypeFile, phenotypeFile))
+	msg();msg("Data preprocessing...");msg()
 
 	# Filter by common sample names
 	common = filterByCommonNames (genotypeFile, phenotypeFile)
@@ -228,6 +280,7 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, config)
 	phenotypeFile = common$phenotypeFile
 
 	if (config$filtering == F) {
+		msg (    "Without filters")
 		runCommand (sprintf ("ln -s %s %s", basename (genotypeFile), "out/filtered-gwasp4-genotype.tbl"))
 		runCommand (sprintf ("ln -s %s %s", basename (phenotypeFile), "out/filtered-gwasp4-phenotype.tbl"))
 
@@ -244,6 +297,7 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, config)
 		runCommand (sprintf ("ln -s %s.map out/filtered-plink-genotype.map", basename (plinkFile)), "log-filtering.log")
 	}
 	else {
+		msg (    "With filters")
 		# Apply filters to genotype (markers and samples) by calling external program
 		filtered = filterByMissingHWE (common$genotypeFile, common$phenotypeFile, config)
 		genotypeFile  = filtered$genotypeFile
@@ -374,8 +428,9 @@ getConfigurationParameters <- function (configFile)
 	message ("------------------------------------------------")
 	msg ("Genotype filename  : ", params$genotypeFile) 
 	msg ("Phenotype filename : ", params$phenotypeFile) 
+	msg ("Correction method  : ", params$correctionMethod) 
+	msg ("Trait              : ", params$trait) 
 	msg ("GwAS model         : ", params$gwasModel) 
-	msg ("Imputation         : ", params$imputation) 
 	msg ("Filtering          : ", params$filtering) 
 	msg ("MIND               : ", params$MIND) 
 	msg ("GENO               : ", params$GENO) 
@@ -409,7 +464,73 @@ impute.mode <- function(x) {
 	}
 	return(x)
 }
-	
+#-------------------------------------------------------------
+# Calculate threshold to decide SNPs significance
+#-------------------------------------------------------------
+calculateThreshold <- function (level, scores, method="FDR") 
+{
+			
+	msg ("Calculating scores for ")
+	scores <- as.vector(scores)
+	m <- length(scores)
+	if (method=="Bonferroni") 
+		threshold <- -log10(level/m)
+	else if (method=="FDR") {
+		msg (method, " method")
+		tmp <- cbind(10^(-scores),.qvalue(10^(-scores)))
+		tmp <- tmp[order(tmp[,2]),]
+		if (tmp[1,2] > level) {
+			threshold <- -log10(tmp[1,1])*1.2
+		} else {
+			k <- max(which(tmp[,2] < level))
+			threshold <- -log10(mean(tmp[k:(k+1),1]))
+		}
+	}else
+		stop (paste0 ("Unknown correction method: ", method))
+
+	return (threshold)
+}
+
+.qvalue <- function(p) {
+        smooth.df = 3
+        if (min(p) < 0 || max(p) > 1) {
+            print("ERROR: p-values not in valid range.")
+            return(0)
+        }
+        lambda = seq(0, 0.9, 0.05)
+        m <- length(p)
+        pi0 <- rep(0, length(lambda))
+        for (i in 1:length(lambda)) {
+            pi0[i] <- mean(p >= lambda[i])/(1 - lambda[i])
+        }
+        spi0 <- smooth.spline(lambda, pi0, df = smooth.df)
+        pi0 <- predict(spi0, x = max(lambda))$y
+        pi0 <- min(pi0, 1)
+        if (pi0 <= 0) {
+            print("ERROR: The estimated pi0 <= 0. Check that you have valid p-values.")
+            return(0)
+        }
+        u <- order(p)
+        qvalue.rank <- function(x) {
+            idx <- sort.list(x)
+            fc <- factor(x)
+            nl <- length(levels(fc))
+            bin <- as.integer(fc)
+            tbl <- tabulate(bin)
+            cs <- cumsum(tbl)
+            tbl <- rep(cs, tbl)
+            tbl[idx] <- tbl
+            return(tbl)
+        }
+        v <- qvalue.rank(p)
+        qvalue <- pi0 * m * p/v
+        qvalue[u[m]] <- min(qvalue[u[m]], 1)
+        for (i in (m - 1):1) {
+            qvalue[u[i]] <- min(qvalue[u[i]], qvalue[u[i + 1]], 
+                1)
+        }
+        return(qvalue)
+    }
 #-------------------------------------------------------------
 # Impute, filter by MAF, unify geno and pheno names
 # Only for "ACGT" format (For other formats see Gwaspoly sources)
@@ -528,13 +649,6 @@ read.GWASpoly2 <- function(ploidy, pheno.file, geno.file, format, n.traits, deli
 	# construct GWASpoly data structure
 	return(new("GWASpoly",map=map,pheno=pheno,fixed=fixed,geno=M,ploidy=ploidy))
 }
-#-------------------------------------------------------------
-# Fast head, for debug only
-#-------------------------------------------------------------
-h <- function (data, n=10,m=10) {
-	print (data [1:n,1:m])
-}
-
 
 
 #-------------------------------------------------------------
@@ -615,15 +729,52 @@ msg <- function (...)
   cat (">>>>", messages, "\n")
 }
 
+#----------------------------------------------------------
+# Util to print head of data
+# Fast head, for debug only
+#----------------------------------------------------------
+hd <- function (data, m=10,n=10) {
+	msg (deparse (substitute (data)),":")
+	if (is.null (dim (data)))
+		print (data [1:10])
+	else if (ncol (data) < 5) 
+		print (data[1:m,])
+	else if (nrow (data) < 10)
+		print (data[,1:n])
+	else 
+		print (data [1:m, 1:n])
+}
+
+#----------------------------------------------------------
+# Create dir, if it exists the it is renamed old-XXX
+#----------------------------------------------------------
+createDir <- function (newDir) {
+	checkOldDir <- function (newDir) {
+		name  = basename (newDir)
+		path  = dirname  (newDir)
+		if (dir.exists (newDir) == T) {
+			oldDir = sprintf ("%s/old-%s", path, name)
+			if (dir.exists (oldDir) == T) {
+				checkOldDir (oldDir)
+			}
+
+			file.rename (newDir, oldDir)
+		}
+	}
+
+	checkOldDir (newDir)
+	system (sprintf ("mkdir %s", newDir))
+}
+
 #-------------------------------------------------------------
 # Run a command string using system function and writes output to log file
 #-------------------------------------------------------------
 runCommand <- function (command, logFile="gwas.log") 
 {
-	msg (">>>> ", command)
+	#msg (">>>> ", command)
 	errorsLog = paste0 (strsplit(logFile, split="[.]")[[1]], ".errors")
 	if (logFile != "")
-		system (paste0 (command, " > ", logFile," > ",errorsLog))
+		system (paste0 (command, " > ", logFile," 2> ",errorsLog))
 	else
 		system (command)
 }
