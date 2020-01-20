@@ -79,7 +79,8 @@ runGwaspoly <- function (data2, gwasModel, snpModels, data3)
 #-------------------------------------------------------------
 # Plot results
 #-------------------------------------------------------------
-showResults <- function (data3, testModels, trait, gwasModel, phenotypeFile, snpsAnnFile, ploidy) 
+d5=NULL
+showResults <- function (data3, testModels, trait, gwasModel, phenotypeFile, snpsAnnFile, ploidy, qtlsFile) 
 {
 	msg();msg ("Writing results...", trait)
 
@@ -91,6 +92,7 @@ showResults <- function (data3, testModels, trait, gwasModel, phenotypeFile, snp
 	
 	# QTL Detection
 	data5 = set.threshold (data3, method="FDR",level=0.05,n.core=4)
+	d5 <<- data5
 
 	# Plots
 	pdf (file=plotName, width=11, height=7)
@@ -113,10 +115,12 @@ showResults <- function (data3, testModels, trait, gwasModel, phenotypeFile, snp
 	dev.off()
 
 	msg (">>>> Writing QTLs...")
-	significativeQTLs = getQTL (data5, snpsAnnFile, gwasModel, ploidy)
-	#significativeQTLs = get.QTL (data5)
-	outFile = sprintf ("out/out-Gwasp%s-%s-QTLs.scores", ploidy, gwasModel) 
-	write.table (file=outFile, significativeQTLs, quote=F, sep="\t", row.names=F)
+	write.GWASpoly (data5, trait, qtlsFile, "scores", delim="\t")
+
+	significativeQTLs  = getQTL (data5, snpsAnnFile, gwasModel, ploidy)
+	significativesFile = addLabel (qtlsFile, "SIGNIFICATIVES")
+	write.table (file=significativesFile, significativeQTLs, quote=F, sep="\t", row.names=F)
+
 }
 
 
@@ -170,7 +174,8 @@ getQTL <- function(data,snpsAnnFile, gwasModel, ploidy, traits=NULL,models=NULL)
 		output <- rbind(output, df)
 	}
 	#out <-cbind (Type=gwasModel, output)
-	output = output [order(-output$GC,-output$Score),]
+
+	output <- output [order(-output$GC,-output$Score),]
 	return(output)
 }
 
@@ -218,4 +223,12 @@ initGWAS <- function (phenotypeFile, genotypeFile, ploidy, format="ACGT", data1)
 							geno.file = genotypeFile, format = "ACGT", n.traits = 1, delim=",")
 
 	return (data1)
+}
+#-------------------------------------------------------------
+# Add label to filename
+#-------------------------------------------------------------
+addLabel <- function (filename, label)  {
+	nameext = strsplit (filename, split="[.]")
+	newName = paste0 (nameext [[1]][1], "-", label, ".", nameext [[1]][2])
+	return (newName)
 }

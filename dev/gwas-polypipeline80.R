@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+# r8.0: Full summary, reorganized scores tables, checked scores/thresholds. 
 # r7.0: Working with filters and no filters. Full: Naive and Structure (K+PCs) for all tools. Reformated filtering. Testeed with gwaspoly data
 # r5.5: Commands as bashs scripts, log files for stdout and errors
 # r5.4: Tools in parallel and commands messages to log files
@@ -11,7 +12,7 @@
 # Constants
 LOAD_DATA          = FALSE
 SIGNIFICANCE_LEVEL = 0.05      # Minimun level of significance (alpha) to considerer a significant SNP
-MAX_BEST           = 10         # Max number of SNPs of best scored SNPs to show in tables and graphics
+MAX_BEST           = 5         # Max number of SNPs of best scored SNPs to show in tables and graphics
 
 args = commandArgs(trailingOnly = TRUE)
 args = c("config-Gwaspoly-Naive-filtersFalse.config")
@@ -70,8 +71,8 @@ main <- function (args)
 	config$trait = data$trait
 
 	# Run the four tools in parallel
-	runPlinkGwas (config)
-	#mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
+	runGwaspolyGwas (config)
+	mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
 
 	# Create outputs: tables, figures
 	markersSummaryTable ("out/", config$gwasModel, "out/", nBEST=MAX_BEST, significanceLevel=SIGNIFICANCE_LEVEL)
@@ -121,7 +122,7 @@ moveOutFiles <- function (outDir)
 runGwasTool <- function (tool, config) 
 {
 	if (tool=="Gwasp")
-		runGwaspGwas (config)
+		runGwaspolyGwas (config)
 	else if (tool=="Plink")
 		runPlinkGwas (config)
 	else if (tool=="Shesis")
@@ -133,7 +134,7 @@ runGwasTool <- function (tool, config)
 }
 #-------------------------------------------------------------
 #-------------------------------------------------------------
-runGwaspGwas <- function (params) 
+runGwaspolyGwas <- function (params) 
 {
 	genotypeFile  = params$genotypeFile
 	phenotypeFile = params$phenotypeFile
@@ -157,8 +158,45 @@ runGwaspGwas <- function (params)
 
 	# GWAS execution
 	data3 <- runGwaspoly (data2, params$gwasModel, params$snpModels, data3)
+	qtlsFile = sprintf ("out/out-Gwaspoly-%s-QTLs.tbl", params$gwasModel)
 	showResults (data3, params$testModels, params$trait, params$gwasModel, 
-				 params$phenotypeFile, params$annotationsFile, ploidy)
+				 params$phenotypeFile, params$annotationsFile, ploidy, qtlsFile)
+
+	# Function to create a table for model
+	createTableGwaspoly  <- function (results, model, var) {
+		scores  = results [,var]
+		P       = 10^(-scores)
+		#scores  <- -log10(results [,var])
+		if (params$correctionMethod=="FDR") 
+			threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="FDR")
+		else if  (params$correctionMethod=="Bonferroni") 
+			threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="Bonferroni")
+		else 
+			stop (paste0 ("Unknown correction method: ", params$correctionMethod))
+
+		# Compose the results table
+		pTable  <-  cbind (Model=model, results [, c("Marker", "Chrom", "Position")], P=P, 
+						   SCORE=scores, THRESHOLD=threshold, DIFF=(scores-threshold))
+		pTable  <- pTable [order (scores, decreasing=T),]    
+		return (pTable)
+	}
+
+	# Get results anc create tables for each model
+	results    <- read.table (file=qtlsFile, header=T, sep="\t", check.names=F)
+	gnrTable   <- createTableGwaspoly (results, "Gnr", "general")
+	addTable   <- createTableGwaspoly (results, "Add", "additive")
+	dom1aTable <- createTableGwaspoly (results, "Dom1A", "1-dom-alt")
+	dom1rTable <- createTableGwaspoly (results, "Dom1R", "1-dom-ref")
+	dom2aTable <- createTableGwaspoly (results, "Dom2A", "2-dom-alt")
+	dom2rTable <- createTableGwaspoly (results, "Dom2R", "2-dom-ref")
+
+	# Join the tables, order by DIFF, and write it
+	scoresTable <- rbind (addTable, dom1aTable, dom1rTable, dom2aTable, dom2rTable, gnrTable)
+	scoresTable <- scoresTable [order (scoresTable$DIFF, decreasing=T),]
+	scoresTable = scoresTable [!duplicated (scoresTable$Marker),]
+
+	scoresFile  = sprintf ("out/out-Gwaspoly-%s-QTLs.scores", params$gwasModel)
+	write.table (file=scoresFile, scoresTable, quote=F, sep="\t", row.names=F)
 
 	if (LOAD_DATA) save(data, data1, data2, data3, file="gwas.RData") 
 }
@@ -194,19 +232,19 @@ runPlinkGwas <- function (params)
 	# Data preprocessing
 	runCommand (cmm, "log-Plink.log")
 	outFile = paste0 (outFile, ".scores")
-	#runCommand (paste0 ("mv ", outPlink, " ", outFile), "log-Plink.log") 
 
-	results             <- read.table (file=outPlink,  header=T) 
-	scoresFDR           <- -log10(results$FDR_BH)
-	scoresBONFERRONI    <- -log10(results$BONF)
-	thresholdFDR        <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores= scoresFDR, method="FDR")
-	thresholdBONFERRONI <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores= scoresBONFERRONI, method="Bonferroni")
+	results      <- read.table (file=outPlink,  header=T) 
+	P            <- results$UNADJ
+	if (params$correctionMethod=="FDR") {
+		scores       <- -log10(results$FDR_BH)
+		threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="FDR")
+	}else {
+		scores       <- -log10(results$BONF)
+		threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="Bonferroni")
+	}
 
-	resultsAll  <- cbind (results, SCORE_FDR=scoresFDR, THRESHOLD_FDR=thresholdFDR, SCORE_BONF=scoresBONFERRONI, THRESHOLD_BONF=thresholdBONFERRONI)
-
+	resultsAll  <- cbind (results, P=P, SCORE=round (scores,6), THRESHOLD=round (threshold,6), DIFF=round (scores-threshold, 6))
 	write.table (file=outFile, resultsAll, row.names=F, quote=F, sep="\t")
-	#thresholdBONF <<- calculateThreshold (level=0.05, results= -log10(results$BONF), method="Bonferroni")
-	#sctb<<-scoresThreshold <<- cbind (results[order(results$BONF,decreasing=F),], SCORE=-log10(results$BONF), THRESHOLD=thresholdBONF)
 }
 	
 #-------------------------------------------------------------
@@ -217,15 +255,32 @@ runShesisGwas <- function (params)
 	msg ("Running Shesis GWAS...")
 	model = params$gwasModel
 
-	inGenoPheno = "out/filtered-shesis-genopheno.tbl"
-	inMarkers   = "out/filtered-shesis-markernames.tbl"
-	outFile     = paste0 ("out/out-Shesis-", model)
-	outShesis   = paste0(outFile,".txt")
+	inGenoPheno  = "out/filtered-shesis-genopheno.tbl"
+	inMarkers    = "out/filtered-shesis-markernames.tbl"
+	outFile      = paste0 ("out/out-Shesis-", model)
+	outShesis    = paste0(outFile,".txt")
+	scoresFile   = paste0(outFile,".scores")
 
 	cmm=sprintf ("%s/scripts/shesis-Naive.sh %s %s %s", HOME, inGenoPheno, inMarkers, outFile)
 	msg (cmm)
 	runCommand (cmm, "log-Shesis.log")
+
+	# Format data to table with scores and threshold
+	results = read.table (file=scoresFile, header=T, sep="\t")
+	P       = results[,"P.value"]
+	if (params$correctionMethod=="FDR") {
+		scores       <- -log10(p.adjust (P, method="fdr"))
+		threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="FDR")
+	}else {
+		scores       <- -log10(p.adjust (P, method="bonferroni"))
+		threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="Bonferroni")
+	}
+
+	resultsAll <- cbind (results, P=P, SCORE=round (scores,6), THRESHOLD=round (threshold,6), DIFF=round (scores-threshold, 6))
+	resultsAll <- resultsAll [order (resultsAll$DIFF, decreasing=T),]
+	write.table (file=scoresFile, resultsAll, row.names=F, quote=F, sep="\t")
 }
+
 #-------------------------------------------------------------
 # Run Tassel pipeline (GDM and MLM)
 #-------------------------------------------------------------
@@ -258,11 +313,40 @@ runTasselGwas <- function (params)
 	outTassel = sprintf ("out/out-Tassel-%s.scores", model)
 
 	# Data preprocessing: Test correction, sort and rename output file
-	ts      = read.table (file=outFile, header=T, sep="\t")
-	tsAdj   = ts %>% mutate (adjP=p.adjust(p,"fdr"),adjPadd=p.adjust(add_p, "fdr"),adjPdom=p.adjust(dom_p, "fdr"))
-	tsMin   = tsAdj %>% rowwise %>% mutate (minP=min(adjP, adjPadd, adjPdom, na.rm=T)) 
-	tsArr   = tsMin %>% arrange (minP)
-	write.table (file=outTassel, tsArr, quote=F, sep="\t", row.names=F)
+	#ts      = read.table (file=outFile, header=T, sep="\t")
+	#tsAdj   = ts %>% mutate (adjP=p.adjust(p,"fdr"),adjPadd=p.adjust(add_p, "fdr"),adjPdom=p.adjust(dom_p, "fdr"))
+	#tsMin   = tsAdj %>% rowwise %>% mutate (minP=min(adjP, adjPadd, adjPdom, na.rm=T)) 
+	#tsArr   = tsMin %>% arrange (minP)
+	#write.table (file=outTassel, tsArr, quote=F, sep="\t", row.names=F)
+
+	# Create tree tables for p, pAdd, and pDom
+	results      <- read.table (file=outFile, header=T, sep="\t")
+	createTableTassel  <- function (results, model, var) {
+		P       <- results [,var]
+		scores  <- -log10(results [,var])
+		if (params$correctionMethod=="FDR") 
+			threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="FDR")
+		else if  (params$correctionMethod=="Bonferroni") 
+			threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="Bonferroni")
+		else 
+			stop (paste0 ("Unknown correction method: ", params$correctionMethod))
+
+		# Compose the results table
+		pTable  <-  cbind (Model=model, results [, c("Marker", "Chr", "Pos")], P=P, 
+						   SCORE=scores, THRESHOLD=threshold, DIFF=(scores-threshold))
+		pTable  <- pTable [order (scores, decreasing=T),]    
+		return (pTable)
+	}
+	# Create tables for each model
+	gnrTable <- createTableTassel (results, "Gnr", "p")
+	addTable <- createTableTassel (results, "Add", "add_p")
+	domTable <- createTableTassel (results, "Dom", "dom_p")
+
+	# Join the tables, order by DIFF, and write it
+	scoresTable <- rbind (addTable, domTable, gnrTable)
+	scoresTable <- scoresTable [order (scoresTable$DIFF, decreasing=T),]
+	scoresTable = scoresTable [!duplicated (scoresTable$Marker),]
+	write.table (file=outTassel, scoresTable, quote=F, sep="\t", row.names=F)
 }
 
 #-------------------------------------------------------------
@@ -323,10 +407,13 @@ filterByCommonNames <- function (genotypeFile, phenotypeFile)
 
 	genoColumns   = colnames (geno)
 	phenoSamples  = pheno [,1] 
-	commonSamples <<- intersect (genoColumns[-(1:3)], phenoSamples) 
+	commonSamples <- intersect (genoColumns[-(1:3)], phenoSamples) 
 
-	genoCommon  <<- geno  [,c(genoColumns[1:3], commonSamples)]
-	phenoCommon <<- pheno [commonSamples,]
+	genoCommon  <- geno  [,c(genoColumns[1:3], commonSamples)]
+	map = genoCommon [, (1:3)]
+	write.table (file="out/map.tbl", map)
+
+	phenoCommon <- pheno [commonSamples,]
 	trait  <- colnames (phenoCommon)[2]
 	genoCommonFile  = paste0 ("out/", addLabel (genotypeFile, "COMMON"))
 	phenoCommonFile = paste0 ("out/", addLabel (phenotypeFile, "COMMON"))
@@ -370,8 +457,8 @@ filterByMissingHWE <- function (genotypeFile, phenotypeFile, config)
 
 	# Get final markers and individuals"
 	msg ("Writing filtered markers and individuals...")
-	filteredSamples <<- as.character (read.table ("out/filtered-plink-genotype.ped")[,2])
-	filteredMarkers <<- as.character (read.table ("out/filtered-plink-genotype.map")[,2])
+	filteredSamples <- as.character (read.table ("out/filtered-plink-genotype.ped")[,2])
+	filteredMarkers <- as.character (read.table ("out/filtered-plink-genotype.map")[,2])
 
 	# Filter phenotype
 	#phenoAll = read.csv (phenotypeFile, header=T, check.names=F)
@@ -469,9 +556,8 @@ impute.mode <- function(x) {
 #-------------------------------------------------------------
 calculateThreshold <- function (level, scores, method="FDR") 
 {
-			
 	msg ("Calculating scores for ")
-	scores <- as.vector(scores)
+	scores <- as.vector(na.omit (scores))
 	m <- length(scores)
 	if (method=="Bonferroni") 
 		threshold <- -log10(level/m)
@@ -503,6 +589,7 @@ calculateThreshold <- function (level, scores, method="FDR")
         for (i in 1:length(lambda)) {
             pi0[i] <- mean(p >= lambda[i])/(1 - lambda[i])
         }
+
         spi0 <- smooth.spline(lambda, pi0, df = smooth.df)
         pi0 <- predict(spi0, x = max(lambda))$y
         pi0 <- min(pi0, 1)
@@ -737,7 +824,7 @@ hd <- function (data, m=10,n=10) {
 	msg (deparse (substitute (data)),":")
 	if (is.null (dim (data)))
 		print (data [1:10])
-	else if (ncol (data) < 5) 
+	else if (ncol (data) < 10) 
 		print (data[1:m,])
 	else if (nrow (data) < 10)
 		print (data[,1:n])

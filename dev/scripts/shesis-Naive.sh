@@ -7,7 +7,7 @@ SHESISGENOPHENO=$1
 SHESISMARKERSNAMES=$2
 OUTFILE=$3
 
-SHEsis --input $SHESISGENOPHENO --ploidy 4 --assoc --qtl --snpname-file $SHESISMARKERSNAMES --report-txt --adjust  --output $OUTFILE
+SHEsis --input $SHESISGENOPHENO --ploidy 4 --assoc --qtl --snpname-file $SHESISMARKERSNAMES --report-txt --adjust  --output $OUTFILE 
 
 # Format by removing initial and end lines and replacing multiples tabs
 tail -n +5 $OUTFILE.txt | head -n-1 > $OUTFILE.tmp

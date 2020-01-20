@@ -15,7 +15,6 @@ options (width=300)
 #------------------------------------------------------------------------
 markersVennDiagrams <- function (summaryTable, scoresType, outDir="out"){
 	require(VennDiagram)
-	st <<-summaryTable
 	flog.threshold(ERROR)
 	x <- list()
 	x$Gwasp4 = summaryTable %>% filter (TOOL %in% "Gwasp4") %>% select (SNP) %>% .$SNP
@@ -23,8 +22,8 @@ markersVennDiagrams <- function (summaryTable, scoresType, outDir="out"){
 	x$Plink  = summaryTable %>% filter (TOOL %in% "Plink")  %>% select (SNP) %>% .$SNP
 	x$Tassel = summaryTable %>% filter (TOOL %in% "Tassel") %>% select (SNP) %>% .$SNP
 
-	v0 <-venn.diagram(x, height=12000, width=12000, alpha = 0.5, filename = NULL,
-						col = c("red", "blue", "green", "yellow"), cex=0.9,
+	v0 <-venn.diagram(x, height=9000, width=9000, alpha = 0.5, filename = NULL,
+						col = c("red", "blue", "green", "yellow"),
 						fill = c("red", "blue", "green", "yellow")) 
 
 	overlaps <- calculate.overlap(x)
@@ -45,75 +44,70 @@ markersVennDiagrams <- function (summaryTable, scoresType, outDir="out"){
 # Create a summary table of best and significative markers
 #------------------------------------------------------------------------
 markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, significanceLevel=0.05, correctionMethod="FDR") {
-	map = read.table (file="out/map.tbl")
-	rownames (map) = map [,1]
+	nMARKERS = 2017
+	THRESHOLD = round (-log10 (significanceLevel/nMARKERS),4)
 
 	files =  list.files(inputDir, pattern=paste0("^(.*(",gwasType,").*(scores)[^$]*)$"), full.names=T)
-	msg ("CREATING THE SUMMARY...")
+	message (">>>> SUMMARY FOR THE FILES: ")
 	summaryTable = data.frame ()
 
 	tool=""
-	msg ("Max number of best scored SNPs:", nBEST)
-	msg ("Tools:")
 	for (f in files) {
 		data <- read.table (file=f, header=T)
-		flagNewData = F
-		if (str_detect(f, "Gwaspoly")) {
+		if (str_detect(f, "Gwasp4")) {
 			tool    = "Gwasp4"
+			data    = data %>% add_count (Marker, sort=T, name="N1") %>% arrange (desc(N1), desc(GC))
+			data    = data %>% distinct (Marker, .keep_all=T)
 			if (nrow(data)>nBEST) data=data [1:nBEST,] 
-			pVal	<- data$P
-			pscores <- data$SCORE
-			tscores <- data$THRESHOLD
-			signf   = pscores >= tscores
-
 			snps    <- data$Marker
+			pVal	<- round (10^(-data$Score),10)
+			pscores <- data$Score
+			tscores <- data$Threshold
 			chrom   <- data$Chrom
 			pos	    <- data$Position
-			flagNewData = T
+			signf   = pscores >= tscores
 		}else if (str_detect (f, "Plink")) {
-			tool    = "Plink"
-			if (nrow(data)>nBEST) data=data [1:nBEST,]
-			pVal    = data$P
+			data    = data [order (data$SCORE, decreasing=T),] 
 			pscores = data$SCORE
 			tscores = data$THRESHOLD
-			signf   = pscores >= tscores
-
+			print (data[1:nBEST,1:12])
+			if (nrow(data)>nBEST) data=data [1:nBEST,]
+			tool    = "Plink"
+			pVal    = data$UNADJ
 			snps    = data$SNP
 			chrom   = data$CHR
-			pos	    = map [snps, "Position"]
-			flagNewData = T
-		}else if (str_detect (f, "Tassel")) {
-			tool    = "Tassel"
-			if (nrow(data)>nBEST) data=data [1:nBEST,]
-			pVal    = data$P
-			pscores = data$SCORE
-			tscores = data$THRESHOLD
+			pos	    = NA
 			signf   = pscores >= tscores
-
+			
+		}else if (str_detect (f, "Tassel")) {
+			if (nrow(data)>nBEST) data=data [1:nBEST,]
+			tool    = "Tassel"
 			snps    = data$Marker
+			#pVal    = unlist (data %>% rowwise %>% mutate (minP=min(p, add_p, dom_p, na.rm=T)) %>% select (minP))
+			#pVal    = p.adjust (pVal, "fdr")
+			pVal    = data$P
+			pscores = unlist (round (-log10 (pVal),4))
+			tscores = THRESHOLD
 			chrom   = data$Chr
 			pos		= data$Pos
-			flagNewData = T
-		}else if (str_detect (f, "Shesis")) {
-			tool    = "Shesis"
-			if (nrow(data)>nBEST) data=data [1:nBEST,]
-			pVal    = data$P
-			pscores = data$SCORE
-			tscores = data$THRESHOLD
 			signf   = pscores >= tscores
-
+		}else if (str_detect (f, "Shesis")) {
+			#data    = read.table (file=f, header=T, sep="\t")
+			data    = data %>% arrange (P.value) %>% head (nBEST) #top_n (-1*nBEST,P.value)
+			tool    = "Shesis"
 			snps    = data$SNP
-			chrom	= map [snps, "Chrom"]
-			pos	    = map [snps, "Position"]
-			flagNewData = T
+			pVal    = data$P.value
+			pVal    = p.adjust (pVal, "fdr")
+			pscores = unlist (round (-log10 (pVal),4))
+			tscores = THRESHOLD
+			chrom   = NA
+			pos		= NA
+			signf   = pscores >= tscores
 		}
-		if (flagNewData==T) {
-			msg ("    ", tool)
-			dfm = data.frame (TOOL=tool, MODEL=gwasType, CHR=chrom, POS=pos, SNP=snps, P = round (pVal,6), FDRSCORE=pscores, THRESHOLD=tscores, SIGNF=signf )
-			dfm = dfm %>% distinct (SNP, .keep_all=T)
-			summaryTable <- rbind (summaryTable, dfm)
-			flagNewData = F
-		}
+		message ("    ", tool, ": ", f)
+		dfm = data.frame (TOOL=tool, MODEL=gwasType, CHR=chrom, POS=pos, SNP=snps, P = round (pVal,6), FDRSCORE=pscores, THRESHOLD=tscores, SIGNF=signf )
+		dfm = dfm %>% distinct (SNP, .keep_all=T)
+		summaryTable <- rbind (summaryTable, dfm)
 	}
 	summaryTable = summaryTable [which(!is.na(summaryTable$SIGNF)),]
 	outName = paste0(outDir, "/out-summary-gwas-best", nBEST)
@@ -129,21 +123,6 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, sign
 }
 
 
-#----------------------------------------------------------
-# Util to print head of data
-# Fast head, for debug only
-#----------------------------------------------------------
-hd <- function (data, m=10,n=10) {
-	msg (deparse (substitute (data)),":")
-	if (is.null (dim (data)))
-		print (data [1:10])
-	else if (ncol (data) < 10) 
-		print (data[1:m,])
-	else if (nrow (data) < 10)
-		print (data[,1:n])
-	else 
-		print (data [1:m, 1:n])
-}
 #-------------------------------------------------------------
 # Print a log message with the parameter
 #-------------------------------------------------------------
@@ -154,5 +133,5 @@ msg <- function (...)
 }
 
 # Create Venn diagram of common markers
-#markersSummaryTable ("out/", "Naive", "out/", nBEST=7)
+#markersSummaryTable ("out/", "Naive", "out/", nBEST=10)
 
