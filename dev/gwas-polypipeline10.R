@@ -1,5 +1,6 @@
 #!/usr/bin/Rscript
-# r8.0: Full summary, reorganized scores tables, checked scores/thresholds. 
+# r10.0: Fixed convertion of tetra to diplos. Excelent results with gwaspoly data
+# r8.0: Full summary, reorganized scores tables, checked scores/thresholds, two correction methods: FDR, BONF. 
 # r7.0: Working with filters and no filters. Full: Naive and Structure (K+PCs) for all tools. Reformated filtering. Testeed with gwaspoly data
 # r5.5: Commands as bashs scripts, log files for stdout and errors
 # r5.4: Tools in parallel and commands messages to log files
@@ -12,10 +13,10 @@
 # Constants
 LOAD_DATA          = FALSE
 SIGNIFICANCE_LEVEL = 0.05      # Minimun level of significance (alpha) to considerer a significant SNP
-MAX_BEST           = 5         # Max number of SNPs of best scored SNPs to show in tables and graphics
+MAX_BEST           = 10         # Max number of SNPs of best scored SNPs to show in tables and graphics
 
 args = commandArgs(trailingOnly = TRUE)
-args = c("config-Gwaspoly-Naive-filtersFalse.config")
+#args = c("config-Gwaspoly-Naive-filtersFalse.config")
 #args = c("in/config-Gota-Naive-filtersNone-impute.config")
 #args = c("in/config-test500-Naive-filtersNone.config")
 
@@ -71,11 +72,11 @@ main <- function (args)
 	config$trait = data$trait
 
 	# Run the four tools in parallel
-	runGwaspolyGwas (config)
 	mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
 
 	# Create outputs: tables, figures
-	markersSummaryTable ("out/", config$gwasModel, "out/", nBEST=MAX_BEST, significanceLevel=SIGNIFICANCE_LEVEL)
+	title = gsub(".*\\config-(.*)\\..*", "\\1", c(configFile))
+	markersSummaryTable ("out/", config$gwasModel, title,  "out/", nBEST=MAX_BEST, significanceLevel=SIGNIFICANCE_LEVEL)
 
 	# Move out files to output dir
 	moveOutFiles (outDir)
@@ -94,6 +95,7 @@ initOutputDir <- function (configFile, genotypeFile, phenotypeFile)
 	outDir   = gsub ("config","test", configFile)
 	msg ("Output dir: ", outDir)
 	createDir (outDir)
+	system (sprintf ("cp %s %s", configFile, outDir))
 
 	runCommand (sprintf ("ln -s %s/%s %s/%s", getwd(), genotypeFile, outDir, genotypeFile))
 	runCommand (sprintf ("ln -s %s/%s %s/%s", getwd(), phenotypeFile, outDir, phenotypeFile))
@@ -103,6 +105,8 @@ initOutputDir <- function (configFile, genotypeFile, phenotypeFile)
 
 	runCommand (sprintf ("cp -a %s %s", genotypeFile, "out/"))
 	runCommand (sprintf ("cp -a %s %s", phenotypeFile, "out/"))
+
+	# Copy config file
 }
 
 moveOutFiles <- function (outDir) 
@@ -262,7 +266,6 @@ runShesisGwas <- function (params)
 	scoresFile   = paste0(outFile,".scores")
 
 	cmm=sprintf ("%s/scripts/shesis-Naive.sh %s %s %s", HOME, inGenoPheno, inMarkers, outFile)
-	msg (cmm)
 	runCommand (cmm, "log-Shesis.log")
 
 	# Format data to table with scores and threshold
@@ -431,6 +434,7 @@ filterByMissingHWE <- function (genotypeFile, phenotypeFile, config)
 	# Format convertion from gwasp4 to plink2
 	msg();msg ("Converting gwaspoly to plink formats...")
 	markersIdsMap = gwaspToPlinkGenoMap (genotypeFile, "out/")
+	hd (markersIdsMap)
 	plinkFile     = gwaspTetraGenoToPlinkPed (genotypeFile, markersIdsMap, "out/")
 
 	cmm = paste ("plink --file", plinkFile, "--make-bed", "--out", paste0(plinkFile,"-QC"))
@@ -456,7 +460,7 @@ filterByMissingHWE <- function (genotypeFile, phenotypeFile, config)
 	runCommand (sprintf ("ln -s %s/%s-QC.map out/filtered-plink-genotype.map", getwd(), plinkFile), "log-filtering.log")
 
 	# Get final markers and individuals"
-	msg ("Writing filtered markers and individuals...")
+	msg ("Writting filtered markers and individuals...")
 	filteredSamples <- as.character (read.table ("out/filtered-plink-genotype.ped")[,2])
 	filteredMarkers <- as.character (read.table ("out/filtered-plink-genotype.map")[,2])
 
@@ -525,8 +529,6 @@ getConfigurationParameters <- function (configFile)
 	msg ("HWE                : ", params$HWE) 
 	message ("------------------------------------------------")
 
-	runCommand (sprintf ("cp %s out/", configFile))
-
 	return (params)
 }
 #-------------------------------------------------------------
@@ -556,7 +558,6 @@ impute.mode <- function(x) {
 #-------------------------------------------------------------
 calculateThreshold <- function (level, scores, method="FDR") 
 {
-	msg ("Calculating scores for ")
 	scores <- as.vector(na.omit (scores))
 	m <- length(scores)
 	if (method=="Bonferroni") 

@@ -1,5 +1,6 @@
 #!/usr/bin/Rscript
 ## Log: 
+##      r2.0: Improve selection of data from tables. Titles to graphics and files
 ##      r1.0: Message to log files
 ##      r0.9: Full working with funtions: create tables and ven diagrams using parameters
 ##      r0.8: Create venn diagrams, summary table of first Ns"
@@ -13,7 +14,7 @@ options (width=300)
 #------------------------------------------------------------------------
 # Create Venn diagram of common markers using info from summary table
 #------------------------------------------------------------------------
-markersVennDiagrams <- function (summaryTable, scoresType, outDir="out"){
+markersVennDiagrams <- function (summaryTable, scoresType, title="", outDir="out"){
 	require(VennDiagram)
 	st <<-summaryTable
 	flog.threshold(ERROR)
@@ -23,7 +24,9 @@ markersVennDiagrams <- function (summaryTable, scoresType, outDir="out"){
 	x$Plink  = summaryTable %>% filter (TOOL %in% "Plink")  %>% select (SNP) %>% .$SNP
 	x$Tassel = summaryTable %>% filter (TOOL %in% "Tassel") %>% select (SNP) %>% .$SNP
 
-	v0 <-venn.diagram(x, height=12000, width=12000, alpha = 0.5, filename = NULL,
+	mainTitle = paste0(title, "-", scoresType)
+	msg();msg (mainTitle);msg()
+	v0 <-venn.diagram(x, height=12000, width=12000, alpha = 0.5, filename = NULL, main=mainTitle,
 						col = c("red", "blue", "green", "yellow"), cex=0.9,
 						fill = c("red", "blue", "green", "yellow")) 
 
@@ -44,7 +47,7 @@ markersVennDiagrams <- function (summaryTable, scoresType, outDir="out"){
 #------------------------------------------------------------------------
 # Create a summary table of best and significative markers
 #------------------------------------------------------------------------
-markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, significanceLevel=0.05, correctionMethod="FDR") {
+markersSummaryTable <- function (inputDir, gwasType, title="", outDir="out", nBEST=5, significanceLevel=0.05, correctionMethod="FDR") {
 	map = read.table (file="out/map.tbl")
 	rownames (map) = map [,1]
 
@@ -57,51 +60,33 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, sign
 	msg ("Tools:")
 	for (f in files) {
 		data <- read.table (file=f, header=T)
+		if (nrow(data)>nBEST) data=data [1:nBEST,] 
+		pVal	<- data$P
+		pscores <- data$SCORE
+		tscores <- data$THRESHOLD
+		signf   = pscores >= tscores
+
 		flagNewData = F
 		if (str_detect(f, "Gwaspoly")) {
 			tool    = "Gwasp4"
-			if (nrow(data)>nBEST) data=data [1:nBEST,] 
-			pVal	<- data$P
-			pscores <- data$SCORE
-			tscores <- data$THRESHOLD
-			signf   = pscores >= tscores
-
 			snps    <- data$Marker
 			chrom   <- data$Chrom
 			pos	    <- data$Position
 			flagNewData = T
 		}else if (str_detect (f, "Plink")) {
 			tool    = "Plink"
-			if (nrow(data)>nBEST) data=data [1:nBEST,]
-			pVal    = data$P
-			pscores = data$SCORE
-			tscores = data$THRESHOLD
-			signf   = pscores >= tscores
-
 			snps    = data$SNP
 			chrom   = data$CHR
 			pos	    = map [snps, "Position"]
 			flagNewData = T
 		}else if (str_detect (f, "Tassel")) {
 			tool    = "Tassel"
-			if (nrow(data)>nBEST) data=data [1:nBEST,]
-			pVal    = data$P
-			pscores = data$SCORE
-			tscores = data$THRESHOLD
-			signf   = pscores >= tscores
-
 			snps    = data$Marker
 			chrom   = data$Chr
 			pos		= data$Pos
 			flagNewData = T
 		}else if (str_detect (f, "Shesis")) {
 			tool    = "Shesis"
-			if (nrow(data)>nBEST) data=data [1:nBEST,]
-			pVal    = data$P
-			pscores = data$SCORE
-			tscores = data$THRESHOLD
-			signf   = pscores >= tscores
-
 			snps    = data$SNP
 			chrom	= map [snps, "Chrom"]
 			pos	    = map [snps, "Position"]
@@ -115,19 +100,19 @@ markersSummaryTable <- function (inputDir, gwasType, outDir="out", nBEST=5, sign
 			flagNewData = F
 		}
 	}
+
 	summaryTable = summaryTable [which(!is.na(summaryTable$SIGNF)),]
 	outName = paste0(outDir, "/out-summary-gwas-best", nBEST)
-	msg ("Writing summary results to ", outName, "...")
+	msg ("Writting summary results to ", outName, "...")
 	write.table (file=paste0(outName,".scores"), summaryTable, row.names=F,quote=F, sep="\t")
-	markersVennDiagrams (summaryTable, paste0("best",nBEST), outDir)
+	markersVennDiagrams (summaryTable, paste0("best",nBEST), title, outDir)
 	summarySignificatives = summaryTable %>% filter (SIGNF%in%T) 
 	outName = paste0(outDir, "/out-summary-gwas-signficatives.scores")
 	write.table (file=outName, summarySignificatives, row.names=F,quote=F, sep="\t")
-	markersVennDiagrams (summarySignificatives, "significatives", outDir)
+	markersVennDiagrams (summarySignificatives, "significatives", title, outDir)
 
 	return (summaryTable)
 }
-
 
 #----------------------------------------------------------
 # Util to print head of data
@@ -154,5 +139,5 @@ msg <- function (...)
 }
 
 # Create Venn diagram of common markers
-#markersSummaryTable ("out/", "Naive", "out/", nBEST=7)
+#markersSummaryTable ("out/", "Naive", "Tittle", "out/",  nBEST=7)
 

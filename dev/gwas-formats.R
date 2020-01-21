@@ -1,5 +1,6 @@
 #!/usr/bin/Rscript
 
+# LOG: r2.0: Fixed convertion from tetra to diplo
 # LOG: r1.3: Changed alt and ref positions
 # LOG: r1.2: Improved tetra to diplo....faster
 # LOG: r1.1: Added function to convert numeric to ACGT genotypes
@@ -68,15 +69,18 @@ gwaspToPlinkGenoMap <- function (gwaspGenoFile, outDir="./")
 {
 	msg ("    >>>> Creating plink MAP file from ", gwaspGenoFile)
 	genotype    <- read.table (file=gwaspGenoFile, header=T,stringsAsFactors=T,sep=",")
+	map <- genotype [,-(1:3)]
 	markers     <- as.character(genotype [,1])
 	chromosomes <- genotype [,2]
 	positions   <- genotype [,3]
 
 	plinkMap     <- data.frame (chr=chromosomes, iid=markers, dist=0, positions=positions)
-	plinkMapSorted <- plinkMap %>% arrange (chr, positions)
+	hd (plinkMap)
+	#plinkMapSorted <- plinkMap %>% arrange (chr, positions)
 	outFile   = paste0 (outDir, strsplit (basename (gwaspGenoFile), split="[.]")[[1]][1], "-plink.map")
-	write.table (file=outFile, plinkMapSorted, col.names=F, row.names=F, quote=F, sep="\t")
-	return (plinkMapSorted$iid)
+	#write.table (file=outFile, plinkMapSorted, col.names=F, row.names=F, quote=F, sep="\t")
+	write.table (file=outFile, plinkMap, col.names=F, row.names=F, quote=F, sep="\t")
+	return (plinkMap$iid)
 }
 
 #----------------------------------------------------------
@@ -110,7 +114,6 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap, outDir="./")
 		rownames (alleles) <- genotype [,1]
 
 		msg ("    >>>> Creating transposed genotype...")
-		markersIds        <- genotype [,1] 
 		samplesIds        <- colnames (alleles)
 
 		msg ("    >>>> Getting Ref/Alt Alleles...")
@@ -118,27 +121,14 @@ gwaspTetraGenoToPlinkPed <- function (gwaspGenoFile, markersIdsMap, outDir="./")
 
 		msg ("    >>>> Converting tetra to diplo")
 		allelesDiplo  <- tetraToDiplos (genotype[,-c(2,3)], refAltAlleles)
-		#allelesDiplo  <- old_tetraToDiplos (alleles, refAltAlleles)
-		rownames (allelesDiplo) = markersIds
-		colnames (allelesDiplo) = samplesIds
 
 		# Adjust for plink PED file
-		allelesPlink <- t(allelesDiplo[markersIdsMap,])
+		allelesPlink <- t(allelesDiplo)
 		genoPED    <- cbind (samplesIds, samplesIds, 0,0,0,-9, allelesPlink)
 
 		msg ("    >>>> Writing plink diplo PED file to ", plinkFile)
 		plinkFilePed  = paste0 (plinkFile, ".ped")
 		write.table (file=plinkFilePed, genoPED, col.names=F, row.names=F, quote=F, sep="\t")
-
-		# Transposed gwasp file
-		transposedAlleles <- t(alleles)
-		rownames (transposedAlleles) = samplesIds
-		colnames (transposedAlleles) = markersIds
-		##write.table (file ="out/tmp-plink-transposed.tbl", transposedAlleles, col.names=T, row.names=T, quote=F, sep="\t")
-
-
-		# Write diplo matrix for original matrix
-		#write.table (file="tmp-diplosMatrix.tbl",allelesDiplo,  quote=F, sep="\t")
 	}
 	
 	return (plinkFile)
