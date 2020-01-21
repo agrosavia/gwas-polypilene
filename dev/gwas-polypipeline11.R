@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+# r11.0: Improved naive with unity kinship matrix. Results according to plink and tassel. It needs to show in summary
 # r10.0: Fixed convertion of tetra to diplos. Excelent results with gwaspoly data
 # r8.0: Full summary, reorganized scores tables, checked scores/thresholds, two correction methods: FDR, BONF. 
 # r7.0: Working with filters and no filters. Full: Naive and Structure (K+PCs) for all tools. Reformated filtering. Testeed with gwaspoly data
@@ -72,7 +73,8 @@ main <- function (args)
 	config$trait = data$trait
 
 	# Run the four tools in parallel
-	mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
+	runGwaspolyGwas (config)
+	#mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
 
 	# Create outputs: tables, figures
 	title = gsub(".*\\config-(.*)\\..*", "\\1", c(configFile))
@@ -373,7 +375,7 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, config)
 
 		# Create plink files
 		markersIdsMap = gwaspToPlinkGenoMap (genotypeFile, "out/")
-		plinkFile = gwaspTetraGenoToPlinkPed (genotypeFile, markersIdsMap, "out/")
+		plinkFile     = gwaspTetraGenoToPlinkPed (genotypeFile, markersIdsMap, "out/")
 
 		# Recode to plink format adjusted for tassel and plink
 		cmm = sprintf ("plink --file %s --recode tab --out %s", plinkFile, plinkFile)
@@ -434,7 +436,6 @@ filterByMissingHWE <- function (genotypeFile, phenotypeFile, config)
 	# Format convertion from gwasp4 to plink2
 	msg();msg ("Converting gwaspoly to plink formats...")
 	markersIdsMap = gwaspToPlinkGenoMap (genotypeFile, "out/")
-	hd (markersIdsMap)
 	plinkFile     = gwaspTetraGenoToPlinkPed (genotypeFile, markersIdsMap, "out/")
 
 	cmm = paste ("plink --file", plinkFile, "--make-bed", "--out", paste0(plinkFile,"-QC"))
@@ -563,7 +564,6 @@ calculateThreshold <- function (level, scores, method="FDR")
 	if (method=="Bonferroni") 
 		threshold <- -log10(level/m)
 	else if (method=="FDR") {
-		msg (method, " method")
 		tmp <- cbind(10^(-scores),.qvalue(10^(-scores)))
 		tmp <- tmp[order(tmp[,2]),]
 		if (tmp[1,2] > level) {

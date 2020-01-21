@@ -42,7 +42,11 @@ controlPopulationStratification <- function (data1, gwasModel, data2)
 
 	if (gwasModel=="Naive") {
 		msg ("    >>>> Without any correction") 
-		dataTmp      <- set.K (data1, K=NULL)
+		markers = data1@pheno [,1]
+		n       = length (markers)
+		kinshipMatrix = matrix (diag (n), n, n, dimnames=list (markers, markers))
+		dataTmp      <- set.K (data1, K=kinshipMatrix)
+		#dataTmp      <- set.K (data1, K=NULL)
 		data2        = new ("GWASpolyStruct", dataTmp)
 	}else if (gwasModel == "Structure") {
 		msg ("    >>>> Using default Kinship and PCs=5 ")
@@ -146,7 +150,7 @@ getQTL <- function(data,snpsAnnFile, gwasModel, ploidy, traits=NULL,models=NULL)
 	n.trait <- length(traits)
 	output <- data.frame(NULL)
 	for (j in 1:n.model) {
-		ix <- which(data@scores[[traits[1]]][,models[j]] > data@threshold[traits[1],models[j]])
+		ix <- which(data@scores[[traits[1]]][,models[j]] > (data@threshold[traits[1],models[j]]) - 1)
 		markers <-  data.frame (SNP=data@map[ix,c("Marker")])
 		msg ("         ", models [j],": ", as.character (markers[,1]))
 
@@ -176,6 +180,7 @@ getQTL <- function(data,snpsAnnFile, gwasModel, ploidy, traits=NULL,models=NULL)
 	#out <-cbind (Type=gwasModel, output)
 
 	output <- output [order(-output$GC,-output$Score),]
+	output = output [!duplicated (output$Marker),]
 	return(output)
 }
 

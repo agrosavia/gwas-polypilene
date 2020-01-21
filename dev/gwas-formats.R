@@ -228,7 +228,8 @@ tetraToDiplos <- function (allelesMat, refAltAlleles)
 #----------------------------------------------------------
 # Convert gwaspoly genotype from ACGT to numeric format
 #----------------------------------------------------------
-ACGTToNumericGenotypeFormat <- function (genotypeFile) {
+ACGTToNumericGenotypeFormat <- function (genotypeFile) 
+{
 	geno = read.csv (file=genotypeFile, header=T)
 	map <- data.frame(Marker=geno[,1],Chrom=factor(geno[,2],ordered=T),Position=geno[,3],stringsAsFactors=F)
 	ploidy=4
@@ -241,7 +242,7 @@ ACGTToNumericGenotypeFormat <- function (genotypeFile) {
 	map$Alt <- tmp[2,]
 
 	message ("Converting ACGT to numeric...")
-	M <<- apply(cbind(map$Ref,markers),1,function(x){
+	M <- apply(cbind(map$Ref,markers),1,function(x){
 		y <- gregexpr(pattern=x[1],text=x[-1],fixed=T)  
 		ans <- as.integer(lapply(y,function(z){ifelse(z[1]<0,ploidy,ploidy-length(z))}))	
 		return(ans)
@@ -281,11 +282,11 @@ numericToACGTFormatAlleles <- function (alleles, SNPs)
 		gnt <- as.numeric (allelesVec [-1])
 		ref = refs [id,2]
 		alt = alts [id,2]
-		gnt [gnt==0] = strrep(ref,4)
-		gnt [gnt==1] = paste0 (strrep(alt,1),strrep(ref,3))
+		gnt [gnt==4] = strrep(ref,4)
+		gnt [gnt==3] = paste0 (strrep(alt,1),strrep(ref,3))
 		gnt [gnt==2] = paste0 (strrep(alt,2),strrep(ref,2))
-		gnt [gnt==3] = paste0 (strrep(alt,3),strrep(ref,1))
-		gnt [gnt==4] = strrep(alt,4)
+		gnt [gnt==1] = paste0 (strrep(alt,3),strrep(ref,1))
+		gnt [gnt==0] = strrep(alt,4)
 		return (gnt)
 	}
 	refs <- data.frame (SNPs [,c(1,2)])
@@ -302,9 +303,35 @@ numericToACGTFormatAlleles <- function (alleles, SNPs)
 	return (newAlleles)
 }
 
+#-------------------------------------------------------------
+# Convert gwaspoly genotye from numeric tetra to numeric diplo
+#-------------------------------------------------------------
+numericTetraToNumericDiploGenotype <- function (genotypeFile) {
+	toDiplo <- function (markers) {
+		id  = markers [1]
+		alleles <- as.numeric (markers [-1])
+		alleles [alleles==0] = 0
+		alleles [alleles==1] = 1
+		alleles [alleles==2] = 1
+		alleles [alleles==3] = 1
+		alleles [alleles==4] = 2
+		return (alleles)
+	}
 
-#-------------------------------------------------------------
-#-------------------------------------------------------------
+	genotype   <- read.csv (genotypeFile, header=T)
+	map      = genotype [,1:3]
+	alleles  = genotype [,-c(2,3)]
+
+	allelesNum <- t (apply (alleles, 1, toDiplo))
+	colnames (allelesNum) = colnames (alleles [-1])
+	rownames (allelesNum) = rownames (alleles)
+
+	newGeno = cbind (map, allelesNum)
+	newName = addLabel (genotypeFile, "diploNUM")
+	write.csv (file=newName, newGeno, row.names=F, quote=F)
+}
+
+
 numericToABGenotypeFormat <- function (genotypeFile) 
 {
 	geno = read.csv (file=genotypeFile, header=T)
@@ -376,15 +403,12 @@ hd <- function (data, m=10,n=10) {
 #----------------------------------------------------------
 # Main
 #----------------------------------------------------------
- main <- function () 
- {
-	args = c ("agrosavia-genotype-tetra-NUM-RENAMED.tbl", "solcap-SNPs-refs-alts-AGs.tbl")
+main <- function () 
+{
+	args = c ("agrosavia-genotype-checked.tbl")
 
-	gwaspGenoFile  = args [1]
-	SNPsFile = args [2]
+	genotypeFile  = args [1]
 
-	numericToACGTFormatGenotype (gwaspGenoFile, SNPsFile )
-
+	numericTetraToNumericDiploGenotype (genotypeFile)
 }
-
 
