@@ -12,12 +12,13 @@
 # r2.41: Changed to parameters by config file. Beginning changes...
 
 # Constants
+DEBUG = F
 LOAD_DATA          = FALSE
 SIGNIFICANCE_LEVEL = 0.05      # Minimun level of significance (alpha) to considerer a significant SNP
-MAX_BEST           = 10         # Max number of SNPs of best scored SNPs to show in tables and graphics
+MAX_BEST           = 8         # Max number of SNPs of best scored SNPs to show in tables and graphics
 
 args = commandArgs(trailingOnly = TRUE)
-#args = c("config-Gwaspoly-Naive-filtersFalse.config")
+args = c("config-TraitPA-ModelStructure-FiltersFalse-CorrectionBONF.config")
 #args = c("in/config-Gota-Naive-filtersNone-impute.config")
 #args = c("in/config-test500-Naive-filtersNone.config")
 
@@ -73,12 +74,13 @@ main <- function (args)
 	config$trait = data$trait
 
 	# Run the four tools in parallel
-	runGwaspolyGwas (config)
-	#mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
+	#runPlinkGwas (config)
+	#runShesisGwas (config)
+	mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
 
 	# Create outputs: tables, figures
 	title = gsub(".*\\config-(.*)\\..*", "\\1", c(configFile))
-	markersSummaryTable ("out/", config$gwasModel, title,  "out/", nBEST=MAX_BEST, significanceLevel=SIGNIFICANCE_LEVEL)
+	markersSummaryTable ("out/", config$gwasModel, title,  "out/", nBEST=MAX_BEST, significanceLevel=config$signficanceLevel)
 
 	# Move out files to output dir
 	moveOutFiles (outDir)
@@ -164,45 +166,9 @@ runGwaspolyGwas <- function (params)
 
 	# GWAS execution
 	data3 <- runGwaspoly (data2, params$gwasModel, params$snpModels, data3)
-	qtlsFile = sprintf ("out/out-Gwaspoly-%s-QTLs.tbl", params$gwasModel)
-	showResults (data3, params$testModels, params$trait, params$gwasModel, 
+	qtlsFile = sprintf ("out/out-Gwaspoly-%s.scores", params$gwasModel)
+	showResults (data3, params$testModels, params$trait, params$gwasModel, params$correctionMethod, 
 				 params$phenotypeFile, params$annotationsFile, ploidy, qtlsFile)
-
-	# Function to create a table for model
-	createTableGwaspoly  <- function (results, model, var) {
-		scores  = results [,var]
-		P       = 10^(-scores)
-		#scores  <- -log10(results [,var])
-		if (params$correctionMethod=="FDR") 
-			threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="FDR")
-		else if  (params$correctionMethod=="Bonferroni") 
-			threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="Bonferroni")
-		else 
-			stop (paste0 ("Unknown correction method: ", params$correctionMethod))
-
-		# Compose the results table
-		pTable  <-  cbind (Model=model, results [, c("Marker", "Chrom", "Position")], P=P, 
-						   SCORE=scores, THRESHOLD=threshold, DIFF=(scores-threshold))
-		pTable  <- pTable [order (scores, decreasing=T),]    
-		return (pTable)
-	}
-
-	# Get results anc create tables for each model
-	results    <- read.table (file=qtlsFile, header=T, sep="\t", check.names=F)
-	gnrTable   <- createTableGwaspoly (results, "Gnr", "general")
-	addTable   <- createTableGwaspoly (results, "Add", "additive")
-	dom1aTable <- createTableGwaspoly (results, "Dom1A", "1-dom-alt")
-	dom1rTable <- createTableGwaspoly (results, "Dom1R", "1-dom-ref")
-	dom2aTable <- createTableGwaspoly (results, "Dom2A", "2-dom-alt")
-	dom2rTable <- createTableGwaspoly (results, "Dom2R", "2-dom-ref")
-
-	# Join the tables, order by DIFF, and write it
-	scoresTable <- rbind (addTable, dom1aTable, dom1rTable, dom2aTable, dom2rTable, gnrTable)
-	scoresTable <- scoresTable [order (scoresTable$DIFF, decreasing=T),]
-	scoresTable = scoresTable [!duplicated (scoresTable$Marker),]
-
-	scoresFile  = sprintf ("out/out-Gwaspoly-%s-QTLs.scores", params$gwasModel)
-	write.table (file=scoresFile, scoresTable, quote=F, sep="\t", row.names=F)
 
 	if (LOAD_DATA) save(data, data1, data2, data3, file="gwas.RData") 
 }
@@ -234,23 +200,29 @@ runPlinkGwas <- function (params)
 	else
 		quit (paste ("Type of GWAS:\"", model, "\", not supported"))
 
-
 	# Data preprocessing
 	runCommand (cmm, "log-Plink.log")
-	outFile = paste0 (outFile, ".scores")
-
 	results      <- read.table (file=outPlink,  header=T) 
-	P            <- results$UNADJ
+	pValues      <- results$UNADJ
 	if (params$correctionMethod=="FDR") {
-		scores       <- -log10(results$FDR_BH)
+		scores       = -log10 (pValues)
 		threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="FDR")
-	}else {
-		scores       <- -log10(results$BONF)
-		threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="Bonferroni")
-	}
+	}else if (params$correctionMethod=="Bonferroni") {
+		# Adjust scores to number of NMISS	(Number of genotype calls considered)
+		outPlinkLinear = paste0(outFile,".TRAIT.assoc.linear")
+		resultsLinear  = read.table (file=outPlinkLinear,  header=T) 
+		resultsLinear  <- resultsLinear [!duplicated (resultsLinear$SNP),]
+		rownames (resultsLinear) = resultsLinear$SNP
+		nMiss     <- resultsLinear [results$SNP, "NMISS"]
+		threshold = -log10 (SIGNIFICANCE_LEVEL/nMiss)
+		scores    = -log10 (nMiss*pValues)
+	}else
+		stop ("Unknown correction method: ", params$correctionMethod)
 
-	resultsAll  <- cbind (results, P=P, SCORE=round (scores,6), THRESHOLD=round (threshold,6), DIFF=round (scores-threshold, 6))
-	write.table (file=outFile, resultsAll, row.names=F, quote=F, sep="\t")
+	resultsAll    <- cbind (results, P=pValues, SCORE=round (scores,6), THRESHOLD=round (threshold,6), DIFF=round (scores-threshold, 6))
+	resultsAll    <- resultsAll [order (resultsAll$DIFF, decreasing=T),]
+	outScores = paste0 (outFile, ".scores")
+	write.table (file=outScores, resultsAll, row.names=F, quote=F, sep="\t")
 }
 	
 #-------------------------------------------------------------
@@ -271,17 +243,18 @@ runShesisGwas <- function (params)
 	runCommand (cmm, "log-Shesis.log")
 
 	# Format data to table with scores and threshold
-	results = read.table (file=scoresFile, header=T, sep="\t")
-	P       = results[,"P.value"]
+	results <- read.table (file=scoresFile, header=T, sep="\t")
+	pValues       = results[,"P.value"]
 	if (params$correctionMethod=="FDR") {
-		scores       <- -log10(p.adjust (P, method="fdr"))
+		scores       <- -log10(p.adjust (pValues, method="fdr"))
 		threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="FDR")
 	}else {
-		scores       <- -log10(p.adjust (P, method="bonferroni"))
-		threshold    <- calculateThreshold (level=SIGNIFICANCE_LEVEL, scores=scores, method="Bonferroni")
+		nMiss     <- results [results$SNP, "Nonmissing"]
+		threshold = -log10 (SIGNIFICANCE_LEVEL/nMiss)
+		scores    = -log10 (nMiss*pValues)
 	}
 
-	resultsAll <- cbind (results, P=P, SCORE=round (scores,6), THRESHOLD=round (threshold,6), DIFF=round (scores-threshold, 6))
+	resultsAll <- cbind (results, P=pValues, SCORE=round (scores,6), THRESHOLD=round (threshold,6), DIFF=round (scores-threshold, 6))
 	resultsAll <- resultsAll [order (resultsAll$DIFF, decreasing=T),]
 	write.table (file=scoresFile, resultsAll, row.names=F, quote=F, sep="\t")
 }
@@ -364,9 +337,11 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, config)
 	msg();msg("Data preprocessing...");msg()
 
 	# Filter by common sample names
-	common = filterByCommonNames (genotypeFile, phenotypeFile)
+	common <- filterByMAFCommonNames (genotypeFile, phenotypeFile)
+	#common = filterByCommonNames (genotypeFile, phenotypeFile)
 	genotypeFile  = common$genotypeFile
 	phenotypeFile = common$phenotypeFile
+	gwaspolyData  = common$data
 
 	if (config$filtering == F) {
 		msg (    "Without filters")
@@ -407,7 +382,7 @@ dataPreprocessing <- function (genotypeFile, phenotypeFile, config)
 filterByCommonNames <- function (genotypeFile, phenotypeFile) 
 {
 	geno  = read.csv (file=genotypeFile, header=T)
-	pheno = read.csv (file=phenotypeFile, header=T)
+	pheno = read.csv (file=phenohenotypeFile, header=T)
 	rownames (pheno) = pheno [,1]
 
 	genoColumns   = colnames (geno)
@@ -455,6 +430,15 @@ filterByMissingHWE <- function (genotypeFile, phenotypeFile, config)
 	runCommand (cmm, "log-filtering.log" )
 	cmm = sprintf ("plink --bfile %s-QC --recode tab --out %s-QC", plinkFile, plinkFile)
 	runCommand (cmm, "log-filtering.log")
+
+#	# Check for linkage disequilibrium
+#	msg ("    >>>> Checking form linkage disequilibrium...")
+#	cmm = sprintf ("plink --bfile %s-QC --indep-pairwise 50 10 0.9 --out %s-LD", plinkFile, plinkFile)
+#	runCommand (cmm, "log-filtering.log")
+#	cmm = sprintf ("plink --bfile %s-QC --exclude %s-LD.prune.out --make-bed --out %s-LDB", plinkFile, plinkFile, plinkFile)
+#	runCommand (cmm, "log-filtering.log")
+#	cmm = sprintf ("plink --bfile %s-LDB --recode tab --out %s-LD", plinkFile, plinkFile)
+#	runCommand (cmm, "log-filtering.log")
 
 	# Copy links of filtered plink files to main dir
 	runCommand (sprintf ("ln -s %s/%s-QC.ped out/filtered-plink-genotype.ped", getwd(), plinkFile), "log-filtering.log")
@@ -520,6 +504,7 @@ getConfigurationParameters <- function (configFile)
 	message ("------------------------------------------------")
 	msg ("Genotype filename  : ", params$genotypeFile) 
 	msg ("Phenotype filename : ", params$phenotypeFile) 
+	msg ("Significance level : ", params$significanceLevel) 
 	msg ("Correction method  : ", params$correctionMethod) 
 	msg ("Trait              : ", params$trait) 
 	msg ("GwAS model         : ", params$gwasModel) 
@@ -623,180 +608,91 @@ calculateThreshold <- function (level, scores, method="FDR")
 # Impute, filter by MAF, unify geno and pheno names
 # Only for "ACGT" format (For other formats see Gwaspoly sources)
 #-------------------------------------------------------------
-filterByImputationMAFNames <- function(pheno.file, geno.file, config){
-	msg ("Filtering by gwaspoly...")
-
-	bases <- c("A","C","G","T")
-	n.traits = 1
-	ploidy   = 4
-	delim    = ","
-
-	msg ("Reading genotype...")
-	#geno = read.csv(file=geno.file,header=T,as.is=T,check.names=F,sep=delim)
-	geno = read.csv(file=geno.file,header=T,as.is=T,sep=delim)
+filterByMAFCommonNames <- function(geno.file, pheno.file, thresholdMAF=0.0){
+	format    = "ACGT"	
+	n.traits  = 1
+	delim     = ","
+	ploidy    = 4
+	bases     = c("A","C","G","T")
 	
-	geno = geno [!duplicated (geno[,1]),]  ### remove duplicates from geno
-	msg ("M = ", nrow (geno), " Initial markers")
+	msg ("Reading genotype and phenotype....")
+	geno      <- read.table(file=geno.file,header=T,as.is=T,check.names=F,sep=delim)
+	gid.geno  <- colnames(geno)[-(1:3)]
+	pheno     <- read.table(file=pheno.file,header=T,as.is=T,check.names=F,sep=delim)
+	gid.pheno <- unique(pheno[,1])
 
-	map     <- data.frame(Markers=geno[,1],Chrom=factor(geno[,2],ordered=T),Position=geno[,3],stringsAsFactors=F)
+	msg ("Removing duplicated markers")
+	geno <- geno [!duplicated (geno[,1]),]  ### remove duplicates from geno
+
+	map     <- data.frame(Marker=geno[,1],Chrom=factor(geno[,2],ordered=T),Position=geno[,3],stringsAsFactors=F)
 	markers <- as.matrix(geno[,-(1:3)])
 	rownames(markers) <- geno[,1]
 	
-	msg ("Obtaining get/ref alleles...")
-	tmp     <- apply(markers,1,get.ref)
+	tmp <- apply(markers,1,get.ref)
 	map$Ref <- tmp[1,]
 	map$Alt <- tmp[2,]
+
+	msg ("Calculating numeric genotype matrix...")
 	M <- apply(cbind(map$Ref,markers),1,function(x){
-			y <- gregexpr(pattern=x[1],text=x[-1],fixed=T)  
-			ans <- as.integer(lapply(y,function(z){ifelse(z[1]<0,ploidy,ploidy-length(z))}))	
-			return(ans)
-		})
+		y <- gregexpr(pattern=x[1],text=x[-1],fixed=T)  
+		ans <- as.integer(lapply(y,function(z){ifelse(z[1]<0,ploidy,ploidy-length(z))}))	
+		return(ans)
+	})
 
-	gid.geno <- colnames(geno)[-(1:3)]
+	msg ("Checking invalid marker calls...")
 	rownames(M) <- gid.geno
-
 	bad <- length(which(!is.element(na.omit(M),0:ploidy)))
 	if (bad > 0) {stop("Invalid marker calls.")}
 	
-	MAFTHRESHOLD=0.0
-	if (config$filtering == T) MAFTHRESHOLD = config$MAF
+	msg ("Checking minor allele frecuency, MAF=", thresholdMAF)
 	MAF <- apply(M,2,function(x){AF <- mean(x,na.rm=T)/ploidy;MAF <- ifelse(AF > 0.5,1-AF,AF)})
-	#polymorphic <- which(MAF>MAFTHRESHOLD) ## LG
-	polymorphic <- which(MAF>0.0)
+	polymorphic <- which(MAF>thresholdMAF)
 
 	M <- M[,polymorphic]
 	map <- map[polymorphic,]
 	map <- map[order(map$Chrom,map$Position),]
 	M <- M[,map$Marker]
 	m <- nrow(map)
-	cat(paste("Number of polymorphic markers:",m,"\n"))
+	msg("Number of polymorphic markers:",m,"\n")
 	
-	msg ("Imputing markers...")
 	missing <- which(is.na(M))
 	if (length(missing)>0) {
-		cat("Missing marker data imputed with population mode \n")
+		msg("Missing marker data imputed with population mode...")
 		M <- apply(M,2,impute.mode)
 	}
 	
-	### matching genotypic and phenotypic data 
-	#pheno     <- read.table(file=pheno.file,header=T,as.is=T,check.names=F,sep=delim)
-	pheno     <- read.table(file=pheno.file,header=T,as.is=T,sep=delim)
-	gid.pheno <- unique(pheno[,1])
-	gid       <- intersect(gid.geno, gid.pheno)
-	pheno     <- pheno[is.element(pheno[,1],gid),]
-	M         <- M[gid,]
-	N         <- length(gid)
-	msg("N =",N,"individuals with phenotypic and genotypic information \n")
+	msg("Matching genotypic and phenotypic data...")
+	gid <- intersect(gid.pheno, gid.geno)
+	pheno <- pheno[is.element(pheno[,1],gid),]
+	rownames (pheno) = pheno [,1]
+	M <- M[gid,]
+	N <- length(gid)
+	msg ("N =",N,"individuals with phenotypic and genotypic information \n")
 	
-	traits <- colnames(pheno)[-1]
-	msg("Detected following traits:\n",paste(traits,collapse="\n"),"\n",sep="")
-
-	# Convert numeric to ACGT
-	genoNumeric <- data.frame (Markers=colnames (M), t(M))
-	SNPs        <- map [,c("Markers","Ref","Alt")]
-	genoACGT    <- numericToACGFormatAlleles (genoNumeric, SNPs)
-	genoImputed = data.frame (map[,-c(4,5)], genoACGT[,-1])
-
-	# Write files
-	genoFile  = paste0("out/", basename (strsplit(geno.file, split="[.]")[[1]][1]), "-IMPUTED.tbl")
-	phenoFile = paste0("out/", basename (strsplit(pheno.file, split="[.]")[[1]][1]), "-IMPUTED.tbl")
-	write.table (file=genoFile, genoImputed, row.names=F, quote=F, sep=",")
-	write.table (file=phenoFile, pheno,  row.names=F, quote=F, sep=",")
-
-
-	return (list (genof=genoFile, phenof=phenoFile, geno=M, pheno=pheno, map=map))
-
-	# construct GWASpoly data structure
-	#return(new("GWASpoly",map=map,pheno=pheno,fixed=fixed,geno=M,ploidy=ploidy))
-}
-
-read.GWASpoly2 <- function(ploidy, pheno.file, geno.file, format, n.traits, delim = ","){
-	msg ("a>>>> >>>> ", geno.file)
-	msg ("a>>>> >>>> ", pheno.file)
-	pheno  = read.table(file=pheno.file,header=T,as.is=T,check.names=F,sep=delim)
-	geno   = read.table(file=geno.file,header=T,as.is=T,check.names=F,sep=delim)
-	map    = data.frame(Markers=geno[,1],Chrom=factor(geno[,2],ordered=T),Position=geno[,3],stringsAsFactors=F)
-
-	markers <- as.matrix(geno[,-(1:3)])
-	rownames(markers) <- geno[,1]
-	msg ("Obtaining get/ref alleles...")
-	tmp     <- apply(markers,1,get.ref)
-	map$Ref <- tmp[1,]
-	map$Alt <- tmp[2,]
+	n.fixed <- ncol(pheno) - n.traits - 1
+	if (n.fixed > 0) {
+		fixed <- data.frame(pheno[,(n.traits+2):ncol(pheno)],stringsAsFactors=F)
+		fixed.names <- colnames(pheno)[(n.traits+2):ncol(pheno)]
+		colnames(fixed) <- fixed.names
+		pheno <- data.frame(pheno[,1:(1+n.traits)],stringsAsFactors=F)
+		cat(paste("Detected following fixed effects:\n",paste(fixed.names,collapse="\n"),"\n",sep=""))
+	} else {
+		fixed <- data.frame(NULL)
+	}
+	trait <- colnames(pheno)[-1]
+	msg("Evaluating following trait: ", trait) 
 	
-	M <- apply(cbind(map$Ref,markers),1,function(x){
-			y <- gregexpr(pattern=x[1],text=x[-1],fixed=T)  
-			ans <- as.integer(lapply(y,function(z){ifelse(z[1]<0,ploidy,ploidy-length(z))}))	
-			return(ans)
-		})
-	rownames (M) = colnames(geno)[-(1:3)]
-
-	msg ("New read.GWASpoly...")
-
-	fixed  = data.frame (NULL)
+	msg ("Writing geno/pheno filtered by MAF, duplicated, common names")
+	rownames (geno) = geno [,1]
+	genoCommon      = geno [colnames(M),c(colnames(geno)[1:3], pheno[,1])]
+	phenoCommon     = pheno 
+	genoCommonFile  = paste0 ("out/", addLabel (geno.file, "COMMON"))
+	phenoCommonFile = paste0 ("out/", addLabel (pheno.file, "COMMON"))
+	write.csv (file=genoCommonFile, genoCommon, quote=F, row.names=F)
+	write.csv (file=phenoCommonFile, phenoCommon, quote=F, row.names=F)
 	# construct GWASpoly data structure
-	return(new("GWASpoly",map=map,pheno=pheno,fixed=fixed,geno=M,ploidy=ploidy))
-}
-
-
-#-------------------------------------------------------------
-#-------------------------------------------------------------
-read.GWASpoly00 <- function(ploidy, pheno.file, geno.file, format, n.traits, delim = ","){
-	msg (".............read.GWaspoly...........")
-
-	bases <- c("A","C","G","T")
-	get.ref <- function(x,format) {
-		y <- paste(na.omit(x),collapse="")
-		ans <- apply(array(bases),1,function(z,y){length(grep(z,y,fixed=T))},y)
-		if (sum(ans)>2) {stop("Error in genotype matrix: More than 2 alleles")}
-		if (sum(ans)==2) {ref.alt <- bases[which(ans==1)]}
-		if (sum(ans)==1) {ref.alt <- c(bases[which(ans==1)],NA)}
-
-		return(ref.alt)
-	}
-
-	geno <- read.table(file=geno.file,header=T,as.is=T,check.names=F,sep=delim)
-	map <- data.frame(Marker=geno[,1],Chrom=factor(geno[,2],ordered=T),Position=geno[,3],stringsAsFactors=F)
-	markers <- as.matrix(geno[,-(1:3)])
-	rownames(markers) <- geno[,1]
-
-	tmp <- apply(markers,1,get.ref,format)
-	map$Ref <- tmp[1,]
-	map$Alt <- tmp[2,]
-	M <- apply(cbind(map$Ref,markers),1,function(x){
-		y <- gregexpr(pattern=x[1],text=x[-1],fixed=T)  
-		ans <- as.integer(lapply(y,function(z){ifelse(z[1]<0,ploidy,ploidy-length(z))}))	
-		return(ans)
-		})
-
-	gid.geno <- colnames(geno)[-(1:3)]
-	rownames(M) <- gid.geno
-	bad <- length(which(!is.element(na.omit(M),0:ploidy)))
-	if (bad > 0) {stop("Invalid marker calls.")}
-
-	impute.mode <- function(x) {
-		ix <- which(is.na(x))
-		if (length(ix)>0) {
-			x[ix] <- as.integer(names(which.max(table(x))))
-		}
-		return(x)
-	}
-
-	missing <- which(is.na(M))
-	if (length(missing)>0) {
-		cat("Missing marker data imputed with population mode \n")
-		M <- apply(M,2,impute.mode)
-	}
-	### matching genotypic and phenotypic data 
-	pheno <- read.table(file=pheno.file,header=T,as.is=T,check.names=F,sep=delim)
-	cat(paste("N =",nrow (pheno),"individuals with phenotypic and genotypic information \n"))
-
-	fixed <- data.frame(NULL)
-	traits <- colnames(pheno)[-1]
-	cat(paste("Detected following traits:\n",paste(traits,collapse="\n"),"\n",sep=""))
-
-	# construct GWASpoly data structure
-	return(new("GWASpoly",map=map,pheno=pheno,fixed=fixed,geno=M,ploidy=ploidy))
+	gwaspolyData = new("GWASpoly",map=map,pheno=pheno,fixed=fixed,geno=M,ploidy=ploidy)
+	return (list (genotypeFile=genoCommonFile, phenotypeFile=phenoCommonFile, data=gwaspolyData, trait=trait))
 }
 
 #-------------------------------------------------------------
@@ -859,14 +755,16 @@ createDir <- function (newDir) {
 #-------------------------------------------------------------
 runCommand <- function (command, logFile="gwas.log") 
 {
-	#msg (">>>> ", command)
-	errorsLog = paste0 (strsplit(logFile, split="[.]")[[1]], ".errors")
-	if (logFile != "")
-		system (paste0 (command, " > ", logFile," 2> ",errorsLog))
-	else
+	if (DEBUG==T) {
+		msg (">>>> ", command)
+		redirection = ""
 		system (command)
+	}else {
+		#msg (">>>> ", command)
+		errorsLog = paste0 (strsplit(logFile, split="[.]")[[1]], ".errors")
+		system (paste0 (command, " > ", logFile," 2> ",errorsLog))
+	}
 }
-
 
 
 #-------------------------------------------------------------

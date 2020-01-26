@@ -1,4 +1,0 @@
-Ploidy	Type	GC	Model	Score	Threshold	Effect	Marker	Chrom	Position	Ref	Alt
-4	Naive	1.02	general	5.71	4.82	NA	c1_8019	10	48863165	A	G
-4	Naive	0.988	2-dom-alt	4.93	4.65	-0.5	c1_8019	10	48863165	A	G
-4	Naive	0.98	additive	7.3	4.82	-0.35	c1_8019	10	48863165	A	G

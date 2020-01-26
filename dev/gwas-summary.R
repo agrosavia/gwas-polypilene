@@ -105,11 +105,11 @@ markersSummaryTable <- function (inputDir, gwasType, title="", outDir="out", nBE
 	outName = paste0(outDir, "/out-summary-gwas-best", nBEST)
 	msg ("Writting summary results to ", outName, "...")
 	write.table (file=paste0(outName,".scores"), summaryTable, row.names=F,quote=F, sep="\t")
-	markersVennDiagrams (summaryTable, paste0("best",nBEST), title, outDir)
+	markersVennDiagrams (summaryTable, paste0("Best",nBEST), title, outDir)
 	summarySignificatives = summaryTable %>% filter (SIGNF%in%T) 
 	outName = paste0(outDir, "/out-summary-gwas-signficatives.scores")
 	write.table (file=outName, summarySignificatives, row.names=F,quote=F, sep="\t")
-	markersVennDiagrams (summarySignificatives, "significatives", title, outDir)
+	markersVennDiagrams (summarySignificatives, "Significatives", title, outDir)
 
 	return (summaryTable)
 }

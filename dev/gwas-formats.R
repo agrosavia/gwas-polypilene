@@ -160,7 +160,16 @@ gwaspTetraToDiploGenotype <- function (genotypeFile)
 	write.csv (file=outName, genotypeDiplo, row.names=F, quote=F)
 }
 
-#----------------------------------------------------------
+#-------------------------------------------------------------
+# Impute NA alleles
+#-------------------------------------------------------------
+impute.mode <- function(x) {
+	ix <- which(is.na(x))
+	if (length(ix)>0) {
+		x[ix] <- as.integer(names(which.max(table(x))))
+	}
+	return(x)
+}
 #----------------------------------------------------------
 #----------------------------------------------------------
 gwaspToShesisGenoPheno <- function (genotypeFile, phenotypeFile) 
@@ -172,17 +181,19 @@ gwaspToShesisGenoPheno <- function (genotypeFile, phenotypeFile)
 		return (s)
 	}
 
-	geno    <- read.csv (file=genotypeFile)
-	pheno   <- read.csv (file=phenotypeFile)
+	geno    <- read.csv (file=genotypeFile, stringsAsFactors=F)
+	pheno   <- read.csv (file=phenotypeFile, stringsAsFactors=F)
 	rownames (pheno) <- pheno [,1]
 	rownames (geno)  <- geno [,1]
 
 	alleles    <- geno[,-c(1,2,3)]
+	alleles [is.na(alleles)] = "0000"
 	allelesMat <- t(sapply (alleles, sep))
 
 	samples         = rownames (allelesMat)
 	markers         = colnames (allelesMat)
 	pheno           = pheno [samples,]
+	pheno [,2]      = impute.mode (pheno [,2])
 	genoPhenoShesis = data.frame (Sample=pheno[,1], Trait=pheno[,2],  allelesMat)
 
 	msg ("    >>>> Writing shesis genopheno...")

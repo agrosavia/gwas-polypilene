@@ -83,8 +83,7 @@ runGwaspoly <- function (data2, gwasModel, snpModels, data3)
 #-------------------------------------------------------------
 # Plot results
 #-------------------------------------------------------------
-d5=NULL
-showResults <- function (data3, testModels, trait, gwasModel, phenotypeFile, snpsAnnFile, ploidy, qtlsFile) 
+showResults <- function (data3, testModels, trait, gwasModel, correctionMethod, phenotypeFile, snpsAnnFile, ploidy, qtlsFile) 
 {
 	msg();msg ("Writing results...", trait)
 
@@ -95,8 +94,7 @@ showResults <- function (data3, testModels, trait, gwasModel, phenotypeFile, snp
 	n = length (testModels)
 	
 	# QTL Detection
-	data5 = set.threshold (data3, method="FDR",level=0.05,n.core=4)
-	d5 <<- data5
+	data5 = set.threshold (data3, method=correctionMethod,level=0.05,n.core=4)
 
 	# Plots
 	pdf (file=plotName, width=11, height=7)
@@ -119,11 +117,11 @@ showResults <- function (data3, testModels, trait, gwasModel, phenotypeFile, snp
 	dev.off()
 
 	msg (">>>> Writing QTLs...")
-	write.GWASpoly (data5, trait, qtlsFile, "scores", delim="\t")
+	#write.GWASpoly (data5, trait, qtlsFile, "scores", delim="\t")
 
 	significativeQTLs  = getQTL (data5, snpsAnnFile, gwasModel, ploidy)
-	significativesFile = addLabel (qtlsFile, "SIGNIFICATIVES")
-	write.table (file=significativesFile, significativeQTLs, quote=F, sep="\t", row.names=F)
+	#significativesFile = addLabel (qtlsFile, "SIGNIFICATIVES")
+	write.table (file=qtlsFile, significativeQTLs, quote=F, sep="\t", row.names=F)
 
 }
 
@@ -150,9 +148,9 @@ getQTL <- function(data,snpsAnnFile, gwasModel, ploidy, traits=NULL,models=NULL)
 	n.trait <- length(traits)
 	output <- data.frame(NULL)
 	for (j in 1:n.model) {
-		ix <- which(data@scores[[traits[1]]][,models[j]] > (data@threshold[traits[1],models[j]]) - 1)
+		#ix <- which(data@scores[[traits[1]]][,models[j]] > (data@threshold[traits[1],models[j]]) - 1)
+		ix <- data@scores[[traits[1]]][,models[j]]
 		markers <-  data.frame (SNP=data@map[ix,c("Marker")])
-		msg ("         ", models [j],": ", as.character (markers[,1]))
 
 		if (!is.null (snpsAnnFile)) 
 			snpAnn  <- merge (markers, snpsAnnotations, by.x="SNP",by.y="SNP_id", sort=F)[,c(2,7)]
@@ -164,24 +162,31 @@ getQTL <- function(data,snpsAnnFile, gwasModel, ploidy, traits=NULL,models=NULL)
 
 		n.ix <- length(ix)
 		
+		gc=rep(datax$delta,n.ix) 
+		scores=round(data@scores[[traits[1]]][ix,models[j]],2)
+		thresholds=round(rep(data@threshold[traits[1],models[j]],n.ix),2)
+		diffs = (scores - thresholds)
+		pvalues = 10^(-scores)
 		df = data.frame(Ploidy=rep (ploidy, n.ix),
 						Type=rep (gwasModel, n.ix),
-						GC=rep(datax$delta,n.ix), 
+						data@map[ix,],
+						GC=gc,
 						Model=rep(models[j],n.ix),
-						Score=round(data@scores[[traits[1]]][ix,models[j]],2),
-						Threshold=round(rep(data@threshold[traits[1],models[j]],n.ix),2),
-						Effect=round(data@effects[[traits[1]]][ix,models[j]],2),
-						data@map[ix,])
+						P=pvalues,SCORE=scores, THRESHOLD=thresholds, DIFF=diffs,
+						Effect=round(data@effects[[traits[1]]][ix,models[j]],2))
 						#snpAnn) 
 						#stringsAsFactors=F,check.names=F)
 
 		output <- rbind(output, df)
 	}
 	#out <-cbind (Type=gwasModel, output)
-
-	output <- output [order(-output$GC,-output$Score),]
+	output <- output [order(-output$GC, -output$DIFF),]
 	output = output [!duplicated (output$Marker),]
-	return(output)
+	outputPositives = output [output$DIFF > 0,]
+	outputNegatives = output [output$DIFF <= 0,]
+
+	outputTotal = rbind (outputPositives, outputNegatives)
+	return(outputTotal)
 }
 
 #-------------------------------------------------------------
