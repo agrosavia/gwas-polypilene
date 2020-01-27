@@ -75,7 +75,6 @@ gwaspToPlinkGenoMap <- function (gwaspGenoFile, outDir="./")
 	positions   <- genotype [,3]
 
 	plinkMap     <- data.frame (chr=chromosomes, iid=markers, dist=0, positions=positions)
-	hd (plinkMap)
 	#plinkMapSorted <- plinkMap %>% arrange (chr, positions)
 	outFile   = paste0 (outDir, strsplit (basename (gwaspGenoFile), split="[.]")[[1]][1], "-plink.map")
 	#write.table (file=outFile, plinkMapSorted, col.names=F, row.names=F, quote=F, sep="\t")

@@ -1,4 +1,5 @@
 #!/usr/bin/Rscript
+# r12.0: Fixed preprocessing using read.GWASpoly. Fixed getQTLs for gwaspoly gwas. Full functionality
 # r11.0: Improved naive with unity kinship matrix. Results according to plink and tassel. It needs to show in summary
 # r10.0: Fixed convertion of tetra to diplos. Excelent results with gwaspoly data
 # r8.0: Full summary, reorganized scores tables, checked scores/thresholds, two correction methods: FDR, BONF. 
@@ -18,7 +19,7 @@ SIGNIFICANCE_LEVEL = 0.05      # Minimun level of significance (alpha) to consid
 MAX_BEST           = 8         # Max number of SNPs of best scored SNPs to show in tables and graphics
 
 args = commandArgs(trailingOnly = TRUE)
-args = c("config-TraitPA-ModelStructure-FiltersFalse-CorrectionBONF.config")
+#args = c("config-TraitPA-ModelStructure-FiltersFalse-CorrectionBONF.config")
 #args = c("in/config-Gota-Naive-filtersNone-impute.config")
 #args = c("in/config-test500-Naive-filtersNone.config")
 
@@ -76,6 +77,7 @@ main <- function (args)
 	# Run the four tools in parallel
 	#runPlinkGwas (config)
 	#runShesisGwas (config)
+	#runGwaspolyGwas (config)
 	mclapply (c("Gwasp", "Plink", "Shesis", "Tassel"), runGwasTool, config, mc.cores=4)
 
 	# Create outputs: tables, figures
@@ -144,6 +146,8 @@ runGwasTool <- function (tool, config)
 #-------------------------------------------------------------
 runGwaspolyGwas <- function (params) 
 {
+	msg("Running GWASpoly...")
+
 	genotypeFile  = params$genotypeFile
 	phenotypeFile = params$phenotypeFile
 
@@ -625,6 +629,7 @@ filterByMAFCommonNames <- function(geno.file, pheno.file, thresholdMAF=0.0){
 	geno <- geno [!duplicated (geno[,1]),]  ### remove duplicates from geno
 
 	map     <- data.frame(Marker=geno[,1],Chrom=factor(geno[,2],ordered=T),Position=geno[,3],stringsAsFactors=F)
+
 	markers <- as.matrix(geno[,-(1:3)])
 	rownames(markers) <- geno[,1]
 	
@@ -682,6 +687,7 @@ filterByMAFCommonNames <- function(geno.file, pheno.file, thresholdMAF=0.0){
 	trait <- colnames(pheno)[-1]
 	msg("Evaluating following trait: ", trait) 
 	
+
 	msg ("Writing geno/pheno filtered by MAF, duplicated, common names")
 	rownames (geno) = geno [,1]
 	genoCommon      = geno [colnames(M),c(colnames(geno)[1:3], pheno[,1])]
@@ -690,6 +696,9 @@ filterByMAFCommonNames <- function(geno.file, pheno.file, thresholdMAF=0.0){
 	phenoCommonFile = paste0 ("out/", addLabel (pheno.file, "COMMON"))
 	write.csv (file=genoCommonFile, genoCommon, quote=F, row.names=F)
 	write.csv (file=phenoCommonFile, phenoCommon, quote=F, row.names=F)
+	# Write chromosome info 
+	map = genoCommon [, (1:3)]
+	write.table (file="out/map.tbl", map)
 	# construct GWASpoly data structure
 	gwaspolyData = new("GWASpoly",map=map,pheno=pheno,fixed=fixed,geno=M,ploidy=ploidy)
 	return (list (genotypeFile=genoCommonFile, phenotypeFile=phenoCommonFile, data=gwaspolyData, trait=trait))

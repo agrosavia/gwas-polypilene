@@ -65,8 +65,6 @@ controlPopulationStratification <- function (data1, gwasModel, data2)
 #-------------------------------------------------------------
 runGwaspoly <- function (data2, gwasModel, snpModels, data3) 
 {
-	msg();msg("Running GWASpoly...")
-
 	if (!is.null (data3)) { msg (">>>> Loading GWASpoly..."); return (data3) }
 
  	if (gwasModel %in% c("Naive","Kinship")) {
@@ -149,7 +147,7 @@ getQTL <- function(data,snpsAnnFile, gwasModel, ploidy, traits=NULL,models=NULL)
 	output <- data.frame(NULL)
 	for (j in 1:n.model) {
 		#ix <- which(data@scores[[traits[1]]][,models[j]] > (data@threshold[traits[1],models[j]]) - 1)
-		ix <- data@scores[[traits[1]]][,models[j]]
+		ix <- which (data@scores[[traits[1]]][,models[j]] != 0)
 		markers <-  data.frame (SNP=data@map[ix,c("Marker")])
 
 		if (!is.null (snpsAnnFile)) 
